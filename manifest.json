@@ -1,0 +1,11 @@
+[
+    {
+        "guid": "d92c00c2-a490-44ec-9822-d2db5bdbfd0e",
+        "name": "Genre Mapper",
+        "description": "Maps the genres of the items to a list of genres chosen by the administrator, directly in the metadata: merge duplicates and translations (like \"Adventure\" and \"Aventure\"), rename or remove genres. Applied to the existing items, the new imports and the metadata refreshes, and the original genres can be restored at any time.",
+        "overview": "Map the genres of your items to your own list of genres",
+        "owner": "angeluriot",
+        "category": "Metadata",
+        "versions": []
+    }
+]

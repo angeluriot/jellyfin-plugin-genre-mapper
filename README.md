@@ -1,0 +1,81 @@
+# Genre Mapper
+
+A **Jellyfin** plugin that maps the genres of the items to a list of genres chosen by the administrator, directly in the metadata.
+
+Useful when the metadata providers don't agree: for example **TMDb** gives translated genres ("Aventure", "Science-Fiction") while **TheTVDB** only has English ones ("Adventure", "Science Fiction"), which makes the genre views, filters and home sections inconsistent.
+
+* Merge duplicates and translations, rename or remove genres
+* Suggestions to merge the obvious duplicates (same name with different case, accents, spaces or punctuation) and translations of the official **TMDb** / **TheTVDB** genres
+* Applied to the existing items, the new imports and the metadata refreshes
+* Preview of the changes before saving
+* The original genres can be restored at any time, without changing any other metadata
+* Translated in English and French
+
+## Requirements
+
+* **Jellyfin** `12.1`
+
+## Installation
+
+1. In **Dashboard > Plugins > Repositories**, add this repository:
+   ```
+   https://raw.githubusercontent.com/angeluriot/jellyfin-plugin-genre-mapper/main/manifest.json
+   ```
+2. Install **Genre Mapper** from the catalog
+3. Restart the server
+
+## Configuration
+
+Open **Dashboard > Plugins > Genre Mapper** (also in the dashboard menu). The default configuration changes nothing.
+
+* **Target genres**: the genres to keep, they are never changed. Add, rename (edit button), merge into another genre (edit button) or remove them. The **suggestions** at the top merge the genres that look like duplicates or translations into their name in the chosen language (the metadata language of your libraries by default)
+* **Mapping**: every known genre, with its number of items and where it comes from (the library, the official **TMDb** genres in the metadata languages of your libraries, the official **TheTVDB** genres). Each one is kept (it is then a target genre), replaced by a target genre, or removed
+* **Preview**: the number of items of each genre now and after the mapping, including the unsaved changes
+* **Settings**: the language of the page (the one of the Jellyfin interface by default), the commit hash (see [Testing changes](#testing-changes), leave empty otherwise) and the [reset](#reset)
+
+Renaming or merging a target genre also moves the genres it replaces. The genres appearing later (new imports) are kept as they are until you map them.
+
+When you save, the mapping is applied to the whole library in the background (the progress is shown at the top of the page).
+
+## How it works
+
+The genres are changed in the Jellyfin metadata only (and in the NFO files if your libraries save them), never in the media files. Items with locked genres (or locked items) are never changed.
+
+* **Saving the settings** runs the **Apply the genre mapping** scheduled task (Dashboard > Scheduled tasks), which maps the genres of all the movies, series, seasons, episodes, collections, music videos, trailers and videos (music genres are left untouched). It also runs once a day and can be run manually
+* **New imports and metadata refreshes** are mapped by a metadata provider that Jellyfin runs after the other providers, before saving the item, so a refresh never brings the provider genres back
+* Every change is logged, and the genres of each item before the first change of the plugin are saved in `plugins/configurations/Jellyfin.Plugin.GenreMapper/original-genres.json`
+
+### Reset
+
+The **Reset** button of the settings restores the original genres of the items changed by the plugin and resets the mapping (every genre is kept), so they are not mapped again. Only the genres are restored, the other metadata (like manual edits) is untouched. Items whose genres were changed by something else since (like a manual edit) keep their current genres.
+
+A Jellyfin metadata refresh was not used for this because it can't be limited to the genres, it would replace the other metadata too.
+
+## Testing changes
+
+To test changes to the web files (`src/Jellyfin.Plugin.GenreMapper/Web`) on a real server without installing a new version, push them to GitHub and enter the commit hash in the settings: the settings page script and the translations are then loaded from this commit through [jsDelivr](https://www.jsdelivr.com/). Changes to the C# code still require a new build.
+
+## Adding a language
+
+Copy `src/Jellyfin.Plugin.GenreMapper/Web/Localization/en.json` to `<code>.json` (like `de.json` or `pt-BR.json`) and translate it, `LanguageName` being the name of the language in that language. Missing strings fall back to English.
+
+The genre names suggested in each language come from **TMDb**, and can be improved (or added for the **TheTVDB** genres) in the `names` of `src/Jellyfin.Plugin.GenreMapper/Data/genres.json`.
+
+## Updating the genre lists
+
+The official genre lists are bundled with the plugin as they rarely change:
+
+* `Data/tmdb-genres.json`: the **TMDb** movie and TV genres in every language, generated by `TMDB_API_KEY=<key> python scripts/update_tmdb_genres.py`
+* `Data/genres.json`: the 35 **TheTVDB** genres (from [thetvdb.com/genres](https://thetvdb.com/genres)), linked to the **TMDb** genres
+
+## Development
+
+Build with the [.NET 10 SDK](https://dotnet.microsoft.com/download):
+
+```
+dotnet build src/Jellyfin.Plugin.GenreMapper -c Release
+```
+
+Then copy `Jellyfin.Plugin.GenreMapper.dll` from `bin/Release/net10.0` to a folder in the `plugins` folder of your server and restart it.
+
+To publish a version, run the **Release** workflow from the GitHub Actions tab with a version number and a changelog: it builds the plugin, creates the GitHub release and adds the version to `manifest.json`.

@@ -1,0 +1,56 @@
+# Builds the plugin, publishes it as a GitHub release and adds the version to manifest.json
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version (like 1.0.0.0)
+        required: true
+      changelog:
+        description: Changelog
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      CHANGELOG: ${{ inputs.changelog }}
+      TARGET_ABI: 12.1.0.0
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet publish src/Jellyfin.Plugin.GenreMapper -c Release -o publish -p:Version="$VERSION"
+
+      - name: Package
+        run: |
+          ZIP="genre-mapper_$VERSION.zip"
+          (cd publish && zip "../$ZIP" Jellyfin.Plugin.GenreMapper.dll)
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "CHECKSUM=$(md5sum "$ZIP" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+
+      - name: Create the release
+        run: gh release create "v$VERSION" "$ZIP" --title "v$VERSION" --notes "$CHANGELOG" --target "$GITHUB_SHA"
+
+      - name: Update the manifest
+        run: |
+          URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION/$ZIP"
+          jq --indent 4 --arg version "$VERSION" --arg changelog "$CHANGELOG" --arg abi "$TARGET_ABI" \
+            --arg url "$URL" --arg checksum "$CHECKSUM" --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.[0].versions = [{ version: $version, changelog: $changelog, targetAbi: $abi, sourceUrl: $url, checksum: $checksum, timestamp: $timestamp }] + .[0].versions' \
+            manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v$VERSION"
+          git push origin "HEAD:${{ github.ref_name }}"

@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Jellyfin.Plugin.GenreMapper/Jellyfin.Plugin.GenreMapper.csproj" />
+  </Folder>
+</Solution>
