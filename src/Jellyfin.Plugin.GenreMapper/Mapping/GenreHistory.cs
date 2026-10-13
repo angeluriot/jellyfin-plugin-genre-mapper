@@ -5,7 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.GenreMapper.Mapping;
 
 /// <summary>
-/// The original genres of the items changed by the plugin, saved in the plugin data so they can be restored.
+/// The original genres of the items changed by the plugin (the ones given by the metadata providers or set by hand),
+/// saved next to the configuration so the mapping is always applied to them and they can be restored.
 /// </summary>
 public sealed class GenreHistory : IDisposable
 {
@@ -48,57 +49,44 @@ public sealed class GenreHistory : IDisposable
     private Dictionary<Guid, GenreChange> Changes => _changes ??= Load();
 
     /// <summary>
-    /// Records a change of the genres of an item, keeping the original genres if the item was already changed by the plugin.
+    /// Gets the original genres of an item.
     /// </summary>
     /// <param name="itemId">The identifier of the item.</param>
-    /// <param name="before">The genres before the change.</param>
-    /// <param name="after">The genres after the change.</param>
-    public void Record(Guid itemId, string[] before, string[] after)
+    /// <param name="genres">The current genres of the item.</param>
+    /// <returns>
+    /// The genres before the changes of the plugin if the current genres are still the ones set by the plugin,
+    /// the current genres otherwise (never changed by the plugin, or changed by something else since, like a metadata refresh or a manual edit).
+    /// </returns>
+    public string[] GetOriginal(Guid itemId, string[] genres)
     {
         lock (_lock)
         {
-            // If the genres were changed by something else since the last change of the plugin, they are the new original genres
-            string[] original = Changes.TryGetValue(itemId, out GenreChange? previous) && previous.Mapped.SequenceEqual(before, StringComparer.Ordinal)
-                ? previous.Original
-                : before;
+            return Changes.TryGetValue(itemId, out GenreChange? change) && change.Mapped.SequenceEqual(genres, StringComparer.Ordinal)
+                ? change.Original
+                : genres;
+        }
+    }
 
-            if (original.SequenceEqual(after, StringComparer.Ordinal))
+    /// <summary>
+    /// Records the genres set by the plugin on an item.
+    /// </summary>
+    /// <param name="itemId">The identifier of the item.</param>
+    /// <param name="original">The original genres of the item.</param>
+    /// <param name="mapped">The genres set by the plugin.</param>
+    public void Record(Guid itemId, string[] original, string[] mapped)
+    {
+        lock (_lock)
+        {
+            if (original.SequenceEqual(mapped, StringComparer.Ordinal))
             {
                 Changes.Remove(itemId);
             }
             else
             {
-                Changes[itemId] = new GenreChange { Original = original, Mapped = after };
+                Changes[itemId] = new GenreChange { Original = original, Mapped = mapped };
             }
 
             ScheduleSave();
-        }
-    }
-
-    /// <summary>
-    /// Gets the saved changes.
-    /// </summary>
-    /// <returns>The changes by item identifier.</returns>
-    public IReadOnlyList<KeyValuePair<Guid, GenreChange>> GetAll()
-    {
-        lock (_lock)
-        {
-            return Changes.ToArray();
-        }
-    }
-
-    /// <summary>
-    /// Forgets the change of an item.
-    /// </summary>
-    /// <param name="itemId">The identifier of the item.</param>
-    public void Remove(Guid itemId)
-    {
-        lock (_lock)
-        {
-            if (Changes.Remove(itemId))
-            {
-                ScheduleSave();
-            }
         }
     }
 

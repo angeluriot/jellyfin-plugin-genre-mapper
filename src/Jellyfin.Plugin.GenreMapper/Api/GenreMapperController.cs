@@ -119,9 +119,9 @@ public class GenreMapperController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<PageData> GetData()
     {
-        // Genres of the items first, then the official genres of the providers used by the libraries
+        // Original genres of the items first, then the official genres of the providers used by the libraries
         Dictionary<string, SourceGenre> genres = new(StringComparer.Ordinal);
-        foreach (string genre in _mappingService.GetItems().SelectMany(item => item.Genres))
+        foreach (string genre in _mappingService.GetItems().SelectMany(_mappingService.GetOriginalGenres))
         {
             GetOrAdd(genres, genre, null).Count++;
         }
@@ -154,14 +154,14 @@ public class GenreMapperController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<PreviewResult> Preview([FromBody] PreviewRequest request)
     {
-        GenreMap map = GenreMap.Create(request.TargetGenres, request.Mappings);
+        GenreMap map = GenreMap.Create(request.Mappings);
         Dictionary<string, GenrePreview> genres = new(StringComparer.Ordinal);
         int changedItems = 0;
 
         foreach (BaseItem item in _mappingService.GetItems())
         {
             string[] before = item.Genres;
-            string[] after = GenreMappingService.CanChangeGenres(item) ? map.Map(before) : before;
+            string[] after = _mappingService.GetMappedGenres(item, map);
 
             if (!before.SequenceEqual(after, StringComparer.Ordinal))
             {
@@ -191,7 +191,7 @@ public class GenreMapperController : ControllerBase
     }
 
     /// <summary>
-    /// Resets the mapping (every genre is kept) and restores the original genres of the items changed by the plugin, in the background.
+    /// Resets the mapping (every genre is kept), which restores the original genres of the items changed by the plugin in the background.
     /// </summary>
     /// <response code="204">The reset is started.</response>
     /// <returns>No content.</returns>
@@ -205,10 +205,15 @@ public class GenreMapperController : ControllerBase
 
         _logger.LogInformation("Resetting the genre mapping and restoring the original genres");
 
-        // The mapping is reset first, so the restored genres are not mapped again
-        plugin.UpdateConfiguration(new PluginConfiguration { CommitHash = current.CommitHash, Language = current.Language });
+        // Applying the empty mapping restores the original genres, the configuration change queues it if the mapping was not empty already
+        bool isAlreadyEmpty = current.Mappings.Length == 0 && current.TargetGenres.Length == 0;
         _taskManager.CancelIfRunning<ApplyMappingTask>();
-        _taskManager.QueueScheduledTask<RestoreGenresTask>();
+        plugin.UpdateConfiguration(new PluginConfiguration { CommitHash = current.CommitHash, Language = current.Language });
+        if (isAlreadyEmpty)
+        {
+            _taskManager.QueueScheduledTask<ApplyMappingTask>();
+        }
+
         return NoContent();
     }
 

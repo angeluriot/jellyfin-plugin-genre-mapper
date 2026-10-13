@@ -2,8 +2,8 @@
  * Genre Mapper - configuration page.
  * Edits the mapping with the built-in plugin configuration API, previews the changes and resets the genres.
  *
- * The mapping is stored as target genres (kept as they are) and links from the other genres to a target genre (or to nothing to remove them).
- * The page shows it as a single list: each kept genre with the genres merged into it under it, then the removed genres.
+ * The page shows the final genres on the left, and on the right the original genres (of the items and of the metadata providers) moved into each of them.
+ * By default, every original genre is in the final genre of the same name, so nothing changes.
  */
 
 const PLUGIN_ID = 'd92c00c2-a490-44ec-9822-d2db5bdbfd0e';
@@ -12,40 +12,43 @@ const LOG_PREFIX = '[GenreMapper]';
 
 const TABS = ['Genres', 'Preview', 'Settings'];
 
-// The scheduled tasks of the plugin, with the translation of their status
-const TASKS = { GenreMapperApply: 'StatusApply', GenreMapperRestore: 'StatusRestore' };
+// The scheduled task applying the mapping
+const APPLY_TASK = 'GenreMapperApply';
 
-// Values of the action select of a genre: keep it, rename it, remove it, or merge it into a kept genre (prefix + name)
-const KEEP = 'k';
-const RENAME = 'n';
+// Values of the "Move to" select of an original genre: a final genre (prefix + name) or the removed genres
+const FINAL_PREFIX = 'f';
 const REMOVE = 'r';
-const MERGE_PREFIX = 'm';
 
 const STYLE = '<style>'
     + '.gmTabs{display:flex;flex-wrap:wrap;margin:0.5em 0 1.5em;border-bottom:1px solid var(--jf-palette-divider,rgba(255,255,255,.12))}'
     + '.gmTab{background:none;border:0;border-bottom:2px solid transparent;color:inherit;cursor:pointer;font:inherit;opacity:.7;padding:.8em 1.2em}'
     + '.gmTab-active{border-bottom-color:var(--jf-palette-primary-main,#00a4dc);opacity:1}'
-    + '.gmGroup{border-bottom:1px solid var(--jf-palette-divider,rgba(128,128,128,.25));padding:.3em 0}'
-    + '.gmRow{display:flex;align-items:center;gap:1em;padding:.35em 0}'
-    + '.gmChild{padding-left:2.2em}'
-    + '.gmChild .gmName:before{content:"\\21B3";opacity:.5;margin-right:.5em}'
-    + '.gmName{flex:1;min-width:0;overflow-wrap:anywhere}'
-    + '.gmGroupName{font-weight:600}'
-    + '.gmRemovedName{text-decoration:line-through;opacity:.7}'
-    + '.gmCount{opacity:.6;font-size:.9em;margin-left:.5em;white-space:nowrap}'
-    + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em;vertical-align:middle}'
-    + '.gmRow .selectContainer{margin:0;flex:0 0 40%;max-width:18em}'
-    + '.gmRow .selectLabel{display:none}'
-    + '.gmRow .selectArrowContainer{top:0;bottom:0;display:flex;align-items:center}.gmRow .selectArrow{margin:0}'
-    + '.gmRename{display:flex;align-items:flex-end;gap:1em;padding:.3em 0 .8em 2.2em}.gmRename .inputContainer{flex:1;margin:0}.gmRename .emby-button{margin:0;flex:none}'
     + '.gmToolbar{display:flex;flex-wrap:wrap;align-items:center;gap:0 2em}.gmToolbar .inputContainer{flex:1;min-width:12em}'
-    + '.gmSectionTitle{margin:2em 0 .5em}'
+    + '.gmFinal{display:grid;grid-template-columns:minmax(10em,32%) 1fr;gap:.5em 1.5em;align-items:start;padding:.7em 0;'
+    + 'border-bottom:1px solid var(--jf-palette-divider,rgba(128,128,128,.25))}'
+    + '.gmHeader{opacity:.6;font-size:.9em;padding-bottom:.4em}'
+    + '.gmFinalName{display:flex;align-items:center;gap:.2em;min-height:2.6em;font-weight:600;overflow-wrap:anywhere}'
+    + '.gmFinalName .gmCount{font-weight:normal}'
+    + '.gmFinalName button{flex:none;opacity:.7}'
+    + '.gmRemovedTitle{display:flex;align-items:center;min-height:2.6em;font-weight:600;color:#e57373}'
+    + '.gmSources{display:flex;flex-direction:column;gap:.3em;min-width:0}'
+    + '.gmSource{display:flex;align-items:center;gap:1em;min-height:2.6em}'
+    + '.gmSourceName{flex:1;min-width:0;overflow-wrap:anywhere}'
+    + '.gmEmpty{display:flex;align-items:center;min-height:2.6em;opacity:.6;font-style:italic}'
+    + '.gmCount{opacity:.6;font-size:.9em;margin-left:.4em;white-space:nowrap}'
+    + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em;vertical-align:middle}'
+    + '.gmSource .selectContainer{margin:0;flex:0 0 13em}'
+    + '.gmSource .selectLabel{display:none}'
+    + '.gmSource .selectArrowContainer{top:0;bottom:0;display:flex;align-items:center}.gmSource .selectArrow{margin:0}'
+    + '.gmInline{display:flex;align-items:flex-end;gap:1em}.gmInline .inputContainer{flex:1;margin:0}.gmInline .emby-button{margin:0;flex:none}'
+    + '.gmAdd{margin-top:1.5em}'
     + '.gmBox{padding:1em 1.2em;border:1px solid var(--jf-palette-divider,rgba(128,128,128,.3));border-radius:.5em;margin-bottom:2em}'
     + '.gmBox h3{margin:0 0 .5em}'
     + '.gmStatus{padding:.8em 1em;border-radius:.5em;background:rgba(0,164,220,.15);margin-bottom:1em}'
     + '.gmPreview table{width:100%;border-collapse:collapse}.gmPreview th,.gmPreview td{text-align:left;padding:.4em .5em;border-bottom:1px solid var(--jf-palette-divider,rgba(128,128,128,.2))}'
     + '.gmPreview td:not(:first-child),.gmPreview th:not(:first-child){text-align:right;width:7em}'
     + '.gmAdded{color:#81c784}.gmRemoved{color:#e57373}'
+    + '@media (max-width:50em){.gmFinal{grid-template-columns:1fr}.gmHeader{display:none}.gmSources{padding-left:1em}}'
     + '</style>';
 
 function escapeHtml(value) {
@@ -135,7 +138,7 @@ class ConfigPage {
         this.hideUnused = true;
         this.statusTimer = null;
         this.pollUntil = 0;
-        this.runningTasks = [];
+        this.applyTask = null;
         this.t = null;
         this.setData(data);
         this.initMapping();
@@ -149,7 +152,7 @@ class ConfigPage {
 
     // ------------------------------------------------------------------ data
 
-    /** The known genres by name, including the ones of the saved mapping that are not known anymore. */
+    /** The original genres by name, including the ones of the saved mapping that are not known anymore. */
     setData(data) {
         this.data = data;
         this.sources = new Map();
@@ -163,35 +166,35 @@ class ConfigPage {
         });
     }
 
-    /** Builds the kept genres and the links of the other genres from the configuration, like the server does. */
+    /** Builds the final genres and the final genre of each original genre from the configuration. */
     initMapping() {
-        const config = this.config;
-        const isDefault = !(config.TargetGenres || []).length && !(config.Mappings || []).length;
-
-        this.targets = isDefault ? Array.from(this.sources.keys()) : (config.TargetGenres || []).slice();
-        this.links = new Map();
-        (config.Mappings || []).forEach((mapping) => {
-            if (this.targets.indexOf(mapping.Source) === -1 && (!mapping.Target || this.targets.indexOf(mapping.Target) !== -1)) {
-                this.links.set(mapping.Source, mapping.Target || '');
-            }
+        this.finals = (this.config.TargetGenres || []).slice();
+        this.assignments = new Map();
+        (this.config.Mappings || []).forEach((mapping) => {
+            this.assignments.set(mapping.Source, mapping.Target || '');
         });
-        this.keepUnmapped();
+        this.assignNew();
     }
 
-    /** The genres without mapping (like the new ones) are kept as they are. */
-    keepUnmapped() {
+    /** The original genres without mapping (like the new ones) are in the final genre of the same name, so they are kept as they are. */
+    assignNew() {
         this.sources.forEach((genre, name) => {
-            if (!this.isTarget(name) && !this.links.has(name)) {
-                this.targets.push(name);
+            if (!this.assignments.has(name)) {
+                this.assignments.set(name, name);
             }
         });
-        this.targets.sort(compareNames);
+        this.assignments.forEach((final) => {
+            if (final && this.finals.indexOf(final) === -1) {
+                this.finals.push(final);
+            }
+        });
+        this.finals.sort(compareNames);
     }
 
     reloadData() {
         return this.apiClient.getJSON(this.apiClient.getUrl('GenreMapper/Data')).then((data) => {
             this.setData(data);
-            this.keepUnmapped();
+            this.assignNew();
             this.render();
         }).catch(function (error) {
             console.error(LOG_PREFIX, error);
@@ -206,76 +209,72 @@ class ConfigPage {
         });
     }
 
-    isTarget(name) {
-        return this.targets.indexOf(name) !== -1;
-    }
-
     getCount(name) {
         const genre = this.sources.get(name);
         return genre ? genre.Count : 0;
     }
 
-    /** The genres merged into a kept genre (without itself) or removed (empty target). */
-    getLinkedSources(target) {
+    /** The original genres in a final genre, or the removed ones for an empty name. */
+    getSources(final) {
         const result = [];
-        this.links.forEach(function (linked, source) {
-            if (linked === target) {
+        this.assignments.forEach(function (assigned, source) {
+            if (assigned === final) {
                 result.push(source);
             }
         });
         return result.sort(compareNames);
     }
 
-    /** Approximate number of items of a kept genre after the mapping (an item can have several of its genres). */
-    getGroupCount(target) {
-        return this.getLinkedSources(target).reduce((total, source) => total + this.getCount(source), this.getCount(target));
+    /** Approximate number of items of a final genre (an item can have several of its original genres). */
+    getFinalCount(final) {
+        return this.getSources(final).reduce((total, source) => total + this.getCount(source), 0);
     }
 
     getMapping() {
         const mappings = [];
-        this.links.forEach(function (target, source) {
+        this.assignments.forEach(function (target, source) {
             mappings.push({ Source: source, Target: target });
         });
-        return { TargetGenres: this.targets.slice(), Mappings: mappings };
+        return { TargetGenres: this.finals.slice(), Mappings: mappings };
     }
 
     // -------------------------------------------------------------- mapping
 
-    keep(name) {
-        if (!this.isTarget(name)) {
-            this.targets.push(name);
-            this.targets.sort(compareNames);
+    addFinal(name) {
+        if (this.finals.indexOf(name) === -1) {
+            this.finals.push(name);
+            this.finals.sort(compareNames);
         }
-        // A kept genre is never changed
-        this.links.delete(name);
     }
 
-    /**
-     * Changes what becomes of a genre: kept (target), merged into a kept genre, or removed (empty target).
-     * A kept genre takes the genres merged into it along.
-     */
-    setTarget(name, target) {
-        if (target === name) {
-            this.keep(name);
+    /** Moves an original genre into a final genre (or removes it), the final genre it leaves is deleted if it is empty now. */
+    move(source, final) {
+        const previous = this.assignments.get(source);
+        this.assignments.set(source, final);
+        if (previous && !this.getSources(previous).length) {
+            this.finals = this.finals.filter(function (other) {
+                return other !== previous;
+            });
+        }
+    }
+
+    /** Moves the original genres of a final genre into another one (or removes them), and deletes the final genre. */
+    moveAll(final, target) {
+        this.getSources(final).forEach((source) => {
+            this.assignments.set(source, target);
+        });
+        this.finals = this.finals.filter(function (other) {
+            return other !== final;
+        });
+    }
+
+    /** Renames a final genre, merging it with the final genre of the new name if it exists. */
+    rename(final, name) {
+        if (name === final) {
             return;
         }
-        if (target) {
-            this.keep(target);
-        }
-
-        if (this.isTarget(name)) {
-            this.getLinkedSources(name).forEach((source) => {
-                this.links.set(source, target);
-            });
-            this.targets = this.targets.filter(function (other) {
-                return other !== name;
-            });
-            // A kept genre that is not a known genre (a new name) disappears when it is renamed, merged or removed
-            if (!this.sources.has(name)) {
-                return;
-            }
-        }
-        this.links.set(name, target);
+        this.addFinal(name);
+        this.moveAll(final, name);
     }
 
     // ------------------------------------------------------------- rendering
@@ -303,7 +302,12 @@ class ConfigPage {
             + '<label class="checkboxContainer"><input is="emby-checkbox" type="checkbox" class="gmHideUnused"' + (this.hideUnused ? ' checked' : '') + ' />'
             + '<span>' + escapeHtml(t('HideUnused')) + '</span></label>'
             + '</div>'
-            + '<div class="gmGenres"></div>')
+            + '<div class="gmFinal gmHeader"><div>' + escapeHtml(t('FinalGenres')) + '</div><div>' + escapeHtml(t('OriginalGenres')) + '</div></div>'
+            + '<div class="gmFinals"></div>'
+            + '<div class="gmInline gmAdd">'
+            + '<div class="inputContainer"><input is="emby-input" type="text" class="gmNewFinal" autocomplete="off" label="' + escapeHtml(t('NewFinalGenre')) + '" /></div>'
+            + '<button is="emby-button" type="button" class="raised" data-action="add"><span>' + escapeHtml(t('Add')) + '</span></button>'
+            + '</div>')
             + this.panelHtml('Preview', ''
             + '<p class="fieldDescription">' + escapeHtml(t('PreviewHelp')) + '</p>'
             + '<button is="emby-button" type="button" class="raised" data-action="preview" style="margin:0 0 1.5em"><span>' + escapeHtml(t('Refresh')) + '</span></button>'
@@ -322,7 +326,7 @@ class ConfigPage {
             + '<button is="emby-button" type="submit" class="raised button-submit block" style="margin-top:2em"><span>' + escapeHtml(t('Save')) + '</span></button>'
             + '</form>';
 
-        this.renderGenres();
+        this.renderFinals();
         this.renderStatus();
         if (this.activeTab === 'Preview') {
             this.renderPreview();
@@ -333,10 +337,10 @@ class ConfigPage {
         return '<div class="gmPanel' + (tab === this.activeTab ? '' : ' hide') + '" data-tab="' + tab + '">' + content + '</div>';
     }
 
-    /** The kept genres with the genres merged into them, then the removed genres. */
-    renderGenres() {
+    /** The final genres with their original genres, then the removed genres. */
+    renderFinals() {
         const t = this.t;
-        const container = this.root.querySelector('.gmGenres');
+        const container = this.root.querySelector('.gmFinals');
         const searchInput = this.root.querySelector('.gmSearch');
         const search = normalize(searchInput ? searchInput.value.trim() : '');
         const matches = function (names) {
@@ -344,44 +348,57 @@ class ConfigPage {
                 return normalize(name).indexOf(search) !== -1;
             });
         };
-        const isVisible = (name) => !this.hideUnused || this.getCount(name) > 0 || this.renaming === name;
+        const isVisible = (source) => !this.hideUnused || this.getCount(source) > 0;
 
-        // A new name without genres merged into it anymore is not a genre anymore
-        this.targets = this.targets.filter((target) => this.sources.has(target) || this.getLinkedSources(target).length > 0);
+        // The same options for every select, the current final genre is removed after rendering
+        const moveOptions = '<option value="" selected disabled hidden>' + escapeHtml(t('MoveTo')) + '</option>'
+            + this.finals.map(function (final) {
+                return '<option value="' + escapeHtml(FINAL_PREFIX + final) + '">' + escapeHtml(final) + '</option>';
+            }).join('')
+            + '<option value="' + REMOVE + '">' + escapeHtml(t('RemoveGenre')) + '</option>';
 
-        // The same options for every select, the current value is set after rendering
-        const mergeOptions = this.targets.map(function (target) {
-            return '<option value="' + escapeHtml(MERGE_PREFIX + target) + '">' + escapeHtml(target) + '</option>';
-        }).join('');
-        const selectOptions = '<option value="' + KEEP + '">' + escapeHtml(t('Keep')) + '</option>'
-            + '<option value="' + RENAME + '">' + escapeHtml(t('Rename')) + '</option>'
-            + '<optgroup label="' + escapeHtml(t('MergeInto')) + '">' + mergeOptions + '</optgroup>'
-            + '<option value="' + REMOVE + '">' + escapeHtml(t('Remove')) + '</option>';
-
-        const groups = this.targets.map((target) => {
-            const children = this.getLinkedSources(target).filter(isVisible);
-            if ((!isVisible(target) && !children.length) || !matches([target].concat(children))) {
+        const rows = this.finals.map((final) => {
+            const allSources = this.getSources(final);
+            const sources = allSources.filter(isVisible);
+            // The final genres whose original genres are all hidden are hidden too, but not the empty ones (just added)
+            if ((allSources.length && !sources.length && this.renaming !== final) || !matches([final].concat(sources))) {
                 return '';
             }
-            return '<div class="gmGroup">'
-                + this.rowHtml(target, KEEP, 'gmGroupName', this.getGroupCount(target), selectOptions)
-                + children.map((child) => this.rowHtml(child, MERGE_PREFIX + target, 'gmChild', this.getCount(child), selectOptions)).join('')
+
+            const name = this.renaming === final
+                ? '<div class="gmInline" style="width:100%">'
+                    + '<div class="inputContainer"><input is="emby-input" type="text" class="gmRenameInput" autocomplete="off" label="' + escapeHtml(t('NewName'))
+                    + '" value="' + escapeHtml(final) + '" /></div>'
+                    + this.iconButton('rename', 'check', t('Rename'))
+                    + this.iconButton('cancelRename', 'close', t('Cancel'))
+                    + '</div>'
+                : '<span>' + escapeHtml(final) + '<span class="gmCount">' + escapeHtml(t.count(this.getFinalCount(final))) + '</span></span>'
+                    + this.iconButton('edit', 'edit', t('Rename'))
+                    + this.iconButton('delete', 'delete', t('Delete'));
+
+            return '<div class="gmFinal" data-final="' + escapeHtml(final) + '">'
+                + '<div class="gmFinalName">' + name + '</div>'
+                + '<div class="gmSources">'
+                + (sources.length ? sources.map((source) => this.sourceHtml(source, moveOptions)).join('') : '<div class="gmEmpty">' + escapeHtml(t('NoOriginalGenres')) + '</div>')
+                + '</div>'
                 + '</div>';
         }).join('');
 
-        const removed = this.getLinkedSources('').filter((name) => isVisible(name) && matches([name]));
+        const removed = this.getSources('').filter((source) => isVisible(source) && matches([source]));
 
-        container.innerHTML = (groups || '<p class="fieldDescription">' + escapeHtml(t('NoGenres')) + '</p>')
-            + (removed.length ? '<h3 class="gmSectionTitle">' + escapeHtml(t('RemovedGenres')) + '</h3>'
-                + '<div class="gmGroup">' + removed.map((name) => this.rowHtml(name, REMOVE, 'gmRemovedName', this.getCount(name), selectOptions)).join('') + '</div>' : '');
+        container.innerHTML = (rows || '<p class="fieldDescription">' + escapeHtml(t('NoGenres')) + '</p>')
+            + (removed.length ? '<div class="gmFinal" data-final="">'
+                + '<div class="gmRemovedTitle">' + escapeHtml(t('RemovedGenres')) + '</div>'
+                + '<div class="gmSources">' + removed.map((source) => this.sourceHtml(source, moveOptions)).join('') + '</div>'
+                + '</div>' : '');
 
-        container.querySelectorAll('select[data-genre]').forEach(function (select) {
-            select.value = select.getAttribute('data-value');
-            // A genre cannot be merged into itself
-            const own = select.querySelector('option[value="' + CSS.escape(MERGE_PREFIX + select.getAttribute('data-genre')) + '"]');
-            if (own) {
-                own.remove();
+        container.querySelectorAll('select[data-source]').forEach((select) => {
+            const final = this.assignments.get(select.getAttribute('data-source'));
+            const current = select.querySelector('option[value="' + CSS.escape(final ? FINAL_PREFIX + final : REMOVE) + '"]');
+            if (current) {
+                current.remove();
             }
+            select.value = '';
         });
 
         const renameInput = container.querySelector('.gmRenameInput');
@@ -391,26 +408,22 @@ class ConfigPage {
         }
     }
 
-    rowHtml(name, value, className, count, selectOptions) {
-        const t = this.t;
-        const genre = this.sources.get(name);
+    sourceHtml(source, moveOptions) {
+        const genre = this.sources.get(source);
         const badges = (genre ? genre.Origins : []).map(function (origin) {
             return '<span class="gmBadge">' + escapeHtml(origin) + '</span>';
         }).join('');
-        const isChild = className === 'gmChild';
 
-        return '<div class="gmRow' + (isChild ? ' gmChild' : '') + '">'
-            + '<div class="gmName"><span class="' + (isChild ? '' : className) + '">' + escapeHtml(name) + '</span>'
-            + '<span class="gmCount">' + escapeHtml(t.count(count)) + '</span>' + badges + '</div>'
-            + '<div class="selectContainer"><select is="emby-select" data-genre="' + escapeHtml(name) + '" data-value="' + escapeHtml(value) + '" aria-label="'
-            + escapeHtml(name) + '">' + selectOptions + '</select></div>'
-            + '</div>'
-            + (this.renaming === name ? '<div class="gmRename">'
-                + '<div class="inputContainer"><input is="emby-input" type="text" class="gmRenameInput" autocomplete="off" label="' + escapeHtml(t('NewName'))
-                + '" value="' + escapeHtml(name) + '" /></div>'
-                + '<button is="emby-button" type="button" class="raised" data-action="rename"><span>' + escapeHtml(t('Ok')) + '</span></button>'
-                + '<button is="emby-button" type="button" class="raised" data-action="cancelRename"><span>' + escapeHtml(t('Cancel')) + '</span></button>'
-                + '</div>' : '');
+        return '<div class="gmSource">'
+            + '<div class="gmSourceName">' + escapeHtml(source) + '<span class="gmCount">' + escapeHtml(this.t.count(this.getCount(source))) + '</span>' + badges + '</div>'
+            + '<div class="selectContainer"><select is="emby-select" data-source="' + escapeHtml(source) + '" aria-label="' + escapeHtml(this.t('MoveTo')) + '">'
+            + moveOptions + '</select></div>'
+            + '</div>';
+    }
+
+    iconButton(action, icon, title) {
+        return '<button is="paper-icon-button-light" type="button" data-action="' + action + '" title="' + escapeHtml(title) + '">'
+            + '<span class="material-icons ' + icon + '" aria-hidden="true"></span></button>';
     }
 
     renderPreview() {
@@ -422,7 +435,7 @@ class ConfigPage {
         return this.apiClient.ajax({
             type: 'POST',
             url: this.apiClient.getUrl('GenreMapper/Preview'),
-            data: JSON.stringify(this.getMapping()),
+            data: JSON.stringify({ Mappings: this.getMapping().Mappings }),
             contentType: 'application/json',
             dataType: 'json'
         }).then(function (result) {
@@ -446,16 +459,15 @@ class ConfigPage {
         });
     }
 
-    /** Shows the progress of the tasks of the plugin, refreshed while they run. */
+    /** Shows the progress of the task applying the mapping, refreshed while it runs. */
     renderStatus() {
         const container = this.root.querySelector('.gmStatus');
         if (!container) {
             return;
         }
-        container.innerHTML = this.runningTasks.map((task) => {
-            return '<div>' + escapeHtml(this.t(TASKS[task.Key], { progress: Math.round(task.CurrentProgressPercentage || 0) })) + '</div>';
-        }).join('');
-        container.classList.toggle('hide', !this.runningTasks.length);
+        const task = this.applyTask;
+        container.textContent = task ? this.t('StatusApply', { progress: Math.round(task.CurrentProgressPercentage || 0) }) : '';
+        container.classList.toggle('hide', !task);
     }
 
     pollStatus() {
@@ -465,16 +477,16 @@ class ConfigPage {
         }
 
         this.apiClient.getJSON(this.apiClient.getUrl('ScheduledTasks')).then((tasks) => {
-            const wasRunning = this.runningTasks.length > 0;
-            this.runningTasks = tasks.filter(function (task) {
-                return TASKS[task.Key] && task.State !== 'Idle';
-            });
+            const wasRunning = this.applyTask !== null;
+            this.applyTask = tasks.find(function (task) {
+                return task.Key === APPLY_TASK && task.State !== 'Idle';
+            }) || null;
             this.renderStatus();
 
-            if (this.runningTasks.length || Date.now() < this.pollUntil) {
+            if (this.applyTask || Date.now() < this.pollUntil) {
                 this.statusTimer = setTimeout(() => this.pollStatus(), 2000);
             }
-            if (wasRunning && !this.runningTasks.length) {
+            if (wasRunning && !this.applyTask) {
                 // The genres of the items changed
                 this.reloadData();
             }
@@ -483,8 +495,8 @@ class ConfigPage {
         });
     }
 
-    /** Polls the status of the tasks for a few seconds at least, the time for a queued task to start. */
-    watchTasks() {
+    /** Polls the status of the task for a few seconds at least, the time for a queued task to start. */
+    watchTask() {
         this.pollUntil = Date.now() + 8000;
         this.pollStatus();
     }
@@ -496,6 +508,9 @@ class ConfigPage {
         if (!button) {
             return;
         }
+
+        const row = button.closest('.gmFinal');
+        const final = row ? row.getAttribute('data-final') : null;
 
         switch (button.getAttribute('data-action')) {
             case 'tab':
@@ -516,53 +531,97 @@ class ConfigPage {
             case 'reset':
                 this.reset();
                 break;
-            case 'rename': {
-                const name = this.root.querySelector('.gmRenameInput').value.trim();
+            case 'add': {
+                const input = this.root.querySelector('.gmNewFinal');
+                const name = input.value.trim();
                 if (name) {
-                    this.setTarget(this.renaming, name);
+                    this.addFinal(name);
+                    input.value = '';
+                    this.renderFinals();
+                }
+                break;
+            }
+            case 'edit':
+                this.renaming = final;
+                this.renderFinals();
+                break;
+            case 'rename': {
+                const name = row.querySelector('.gmRenameInput').value.trim();
+                if (name) {
+                    this.rename(final, name);
                 }
                 this.renaming = null;
-                this.renderGenres();
+                this.renderFinals();
                 break;
             }
             case 'cancelRename':
                 this.renaming = null;
-                this.renderGenres();
+                this.renderFinals();
+                break;
+            case 'delete':
+                this.deleteFinal(final);
                 break;
             default:
                 break;
         }
     }
 
-    /** Enter in the rename field renames the genre instead of saving the form, Escape cancels. */
+    /** Deletes a final genre, its original genres are removed from the items. */
+    deleteFinal(final) {
+        const sources = this.getSources(final);
+        const count = this.getFinalCount(final);
+        const apply = () => {
+            this.moveAll(final, '');
+            this.renderFinals();
+        };
+
+        if (count > 0) {
+            confirmDialog(this.t('DeleteConfirm', { genre: final, genres: sources.join(', '), count: count }), this.t('Delete')).then(function (confirmed) {
+                if (confirmed) {
+                    apply();
+                }
+            });
+        } else {
+            apply();
+        }
+    }
+
+    /** Enter in a text field runs its action instead of saving the form, Escape cancels the renaming. */
     onKeyDown(event) {
-        if (!event.target.classList.contains('gmRenameInput') || (event.key !== 'Enter' && event.key !== 'Escape')) {
-            if (event.key === 'Enter' && event.target.tagName === 'INPUT' && event.target.type === 'search') {
-                event.preventDefault();
-            }
+        const target = event.target;
+        if (target.tagName !== 'INPUT' || (event.key !== 'Enter' && event.key !== 'Escape')) {
             return;
         }
 
-        event.preventDefault();
-        const action = event.key === 'Enter' ? 'rename' : 'cancelRename';
-        this.root.querySelector('.gmRename [data-action="' + action + '"]').click();
+        if (target.classList.contains('gmRenameInput')) {
+            event.preventDefault();
+            target.closest('.gmFinal').querySelector('[data-action="' + (event.key === 'Enter' ? 'rename' : 'cancelRename') + '"]').click();
+        } else if (event.key === 'Enter' && (target.classList.contains('gmNewFinal') || target.type === 'search')) {
+            event.preventDefault();
+            if (target.classList.contains('gmNewFinal')) {
+                this.root.querySelector('[data-action="add"]').click();
+            }
+        }
     }
 
     onInput(event) {
         if (event.target.classList.contains('gmSearch')) {
-            this.renderGenres();
+            this.renderFinals();
         }
     }
 
     onChange(event) {
         const element = event.target;
-        const genre = element.getAttribute('data-genre');
+        const source = element.getAttribute('data-source');
 
-        if (genre !== null) {
-            this.onGenreAction(genre, element.value);
+        if (source !== null) {
+            if (element.value) {
+                this.move(source, element.value === REMOVE ? '' : element.value.substring(FINAL_PREFIX.length));
+                this.renderFinals();
+            }
         } else if (element.classList.contains('gmHideUnused')) {
             this.hideUnused = element.checked;
-            this.renderGenres();
+            this.renderFinals();
         } else if (element.getAttribute('data-field')) {
             const field = element.getAttribute('data-field');
             this.config[field] = element.value.trim();
@@ -570,33 +629,6 @@ class ConfigPage {
                 this.loadTranslations().then(() => this.render());
             }
         }
-    }
-
-    onGenreAction(genre, value) {
-        this.renaming = null;
-
-        if (value === RENAME) {
-            this.renaming = genre;
-        } else if (value === KEEP) {
-            this.keep(genre);
-        } else if (value === REMOVE) {
-            // Removing a kept genre also removes the genres merged into it
-            const count = this.isTarget(genre) ? this.getGroupCount(genre) : 0;
-            if (count > 0) {
-                confirmDialog(this.t('RemoveConfirm', { genre: genre, count: count }), this.t('Remove')).then((confirmed) => {
-                    if (confirmed) {
-                        this.setTarget(genre, '');
-                    }
-                    this.renderGenres();
-                });
-                return;
-            }
-            this.setTarget(genre, '');
-        } else {
-            this.setTarget(genre, value.substring(MERGE_PREFIX.length));
-        }
-
-        this.renderGenres();
     }
 
     onSubmit(event) {
@@ -610,7 +642,7 @@ class ConfigPage {
         this.apiClient.updatePluginConfiguration(PLUGIN_ID, this.config).then(() => {
             Dashboard.processPluginConfigurationUpdateResult();
             Dashboard.alert(this.t('SaveApplying'));
-            this.watchTasks();
+            this.watchTask();
         }).catch(function (error) {
             console.error(LOG_PREFIX, error);
             Dashboard.hideLoadingMsg();
@@ -632,7 +664,7 @@ class ConfigPage {
                 this.initMapping();
                 this.render();
                 Dashboard.alert(t('ResetStarted'));
-                this.watchTasks();
+                this.watchTask();
             }).catch(function (error) {
                 console.error(LOG_PREFIX, error);
             }).then(function () {
@@ -645,7 +677,7 @@ class ConfigPage {
 /**
  * Loads the configuration and renders the page.
  * @param {HTMLElement} view The page element.
- * @param {Object} data The data of the page (version, languages and known genres).
+ * @param {Object} data The data of the page (version, languages and original genres).
  */
 export function init(view, data) {
     return window.ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {

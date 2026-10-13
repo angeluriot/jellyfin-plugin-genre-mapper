@@ -19,13 +19,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public string Language { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the genres to keep, they are never changed.
+    /// Gets or sets the final genres listed in the settings page, the ones the original genres can be moved into.
     /// </summary>
     /// <remarks>Arrays (and not lists) so the XML serializer replaces the defaults instead of appending to them.</remarks>
     public string[] TargetGenres { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the target genre of the other genres, the genres without mapping are kept as they are.
+    /// Gets or sets the final genre of the original genres (empty to remove them), the genres without mapping are kept as they are.
     /// </summary>
     public GenreMapping[] Mappings { get; set; } = [];
 }

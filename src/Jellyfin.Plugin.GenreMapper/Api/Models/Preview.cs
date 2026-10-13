@@ -8,12 +8,7 @@ namespace Jellyfin.Plugin.GenreMapper.Api.Models;
 public class PreviewRequest
 {
     /// <summary>
-    /// Gets or sets the genres to keep.
-    /// </summary>
-    public string[] TargetGenres { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets the target genre of the other genres.
+    /// Gets or sets the final genre of the original genres.
     /// </summary>
     public GenreMapping[] Mappings { get; set; } = [];
 }

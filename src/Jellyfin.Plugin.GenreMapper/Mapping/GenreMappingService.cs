@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.GenreMapper.Mapping;
 
 /// <summary>
-/// Applies the mapping to the genres of the items and restores their original genres.
+/// Applies the mapping to the original genres of the items.
 /// </summary>
 public class GenreMappingService
 {
@@ -61,34 +61,51 @@ public class GenreMappingService
     });
 
     /// <summary>
-    /// Maps the genres of an item, without saving it, and records the change.
+    /// Gets the original genres of an item: the ones before the changes of the plugin, if the plugin changed them.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns>The original genres.</returns>
+    public string[] GetOriginalGenres(BaseItem item) => _history.GetOriginal(item.Id, item.Genres);
+
+    /// <summary>
+    /// Gets the genres an item would have with a mapping.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="map">The mapping.</param>
+    /// <returns>The mapped genres, or the current ones if they can't be changed.</returns>
+    public string[] GetMappedGenres(BaseItem item, GenreMap map) => CanChangeGenres(item) ? map.Map(GetOriginalGenres(item)) : item.Genres;
+
+    /// <summary>
+    /// Maps the original genres of an item, without saving it, and records the change.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="map">The mapping.</param>
     /// <returns><c>true</c> if the genres changed.</returns>
     public bool MapGenres(BaseItem item, GenreMap map)
     {
-        if (map.IsEmpty || !CanChangeGenres(item))
+        if (!CanChangeGenres(item))
         {
             return false;
         }
 
         string[] before = item.Genres;
-        string[] after = map.Map(before);
+        string[] original = GetOriginalGenres(item);
+        string[] after = map.Map(original);
         if (before.SequenceEqual(after, StringComparer.Ordinal))
         {
             return false;
         }
 
         _logger.LogInformation(
-            "Genres of {ItemName} ({ItemId}) mapped from [{Before}] to [{After}]",
+            "Genres of {ItemName} ({ItemId}) changed from [{Before}] to [{After}] (original genres: [{Original}])",
             item.Name,
             item.Id,
             string.Join(", ", before),
-            string.Join(", ", after));
+            string.Join(", ", after),
+            string.Join(", ", original));
 
         item.Genres = after;
-        _history.Record(item.Id, before, after);
+        _history.Record(item.Id, original, after);
         return true;
     }
 
@@ -100,13 +117,8 @@ public class GenreMappingService
     /// <returns>The number of changed items.</returns>
     public async Task<int> ApplyAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
+        // Also run with an empty mapping, which restores the original genres
         GenreMap map = GenreMap.FromConfiguration();
-        if (map.IsEmpty)
-        {
-            progress.Report(100);
-            return 0;
-        }
-
         IReadOnlyList<BaseItem> items = GetItems();
         HashSet<string> genres = new(StringComparer.OrdinalIgnoreCase);
         int changed = 0;
@@ -137,75 +149,6 @@ public class GenreMappingService
         _logger.LogInformation("Genre mapping applied, {Count} items changed", changed);
         progress.Report(100);
         return changed;
-    }
-
-    /// <summary>
-    /// Restores the original genres of the items changed by the plugin.
-    /// </summary>
-    /// <param name="progress">The progress, from 0 to 100.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The number of restored items.</returns>
-    public async Task<int> RestoreAsync(IProgress<double> progress, CancellationToken cancellationToken)
-    {
-        IReadOnlyList<KeyValuePair<Guid, GenreChange>> changes = _history.GetAll();
-        HashSet<string> genres = new(StringComparer.OrdinalIgnoreCase);
-        int restored = 0;
-
-        try
-        {
-            for (int index = 0; index < changes.Count; index++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                (Guid itemId, GenreChange change) = changes[index];
-                BaseItem? item = _libraryManager.GetItemById(itemId);
-
-                if (item is null)
-                {
-                    _history.Remove(itemId);
-                }
-                else if (!CanChangeGenres(item))
-                {
-                    // Kept, so the genres can still be restored if the item is unlocked
-                    _logger.LogInformation("Genres of {ItemName} ({ItemId}) not restored because they are locked", item.Name, item.Id);
-                }
-                else if (!item.Genres.SequenceEqual(change.Mapped, StringComparer.Ordinal))
-                {
-                    // The genres were changed by something else since, they are not the ones of the plugin anymore
-                    _logger.LogInformation(
-                        "Genres of {ItemName} ({ItemId}) not restored because they were changed since: [{Genres}]",
-                        item.Name,
-                        item.Id,
-                        string.Join(", ", item.Genres));
-                    _history.Remove(itemId);
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "Genres of {ItemName} ({ItemId}) restored from [{Before}] to [{After}]",
-                        item.Name,
-                        item.Id,
-                        string.Join(", ", item.Genres),
-                        string.Join(", ", change.Original));
-
-                    item.Genres = change.Original;
-                    await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
-                    _history.Remove(itemId);
-                    genres.UnionWith(item.Genres);
-                    restored++;
-                }
-
-                progress.Report(95.0 * (index + 1) / changes.Count);
-            }
-        }
-        finally
-        {
-            _history.Save();
-        }
-
-        await CreateGenresAsync(genres, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("Original genres restored for {Count} items", restored);
-        progress.Report(100);
-        return restored;
     }
 
     /// <summary>

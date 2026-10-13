@@ -4,7 +4,7 @@ A **Jellyfin** plugin that maps the genres of the items to a list of genres chos
 
 Useful when the metadata providers don't agree: for example **TMDb** gives translated genres ("Aventure", "Science-Fiction") while **TheTVDB** only has English ones ("Adventure", "Science Fiction"), which makes the genre views, filters and home sections inconsistent.
 
-* Keep, rename, merge or remove each genre, in a single list
+* Choose the final genres and move each original genre into one of them (or remove it)
 * Applied to the existing items, the new imports and the metadata refreshes
 * Preview of the changes before saving
 * The original genres can be restored at any time, without changing any other metadata
@@ -27,11 +27,15 @@ Useful when the metadata providers don't agree: for example **TMDb** gives trans
 
 Open **Dashboard > Plugins > Genre Mapper** (also in the dashboard menu). The default configuration changes nothing.
 
-* **Genres**: every known genre, with its number of items. For each one, choose to keep it, rename it, merge it into another genre (it then appears under it) or remove it. Renaming or merging a genre also moves the genres merged into it. The known genres are the genres of your items, plus the official genres of the metadata fetchers enabled in your libraries (shown with a **TMDb** / **TheTVDB** badge, hidden while they have no items), so you can map them before they appear: the **TMDb** movie genres for the movies, the **TMDb** TV genres for the series (both in the metadata language of the library), and the **TheTVDB** genres
+* **Genres**: on the left, the final genres (the genres your items will have). On the right, the original genres in each of them, with their number of items:
+  * By default every original genre is in the final genre of the same name, so nothing changes
+  * **Move to** moves an original genre into another final genre, or removes it from the items (it then appears in "These genres will be removed")
+  * The pencil renames a final genre, renaming it like another one merges them. The bin deletes it, its original genres are then removed from the items. **Add** creates a new final genre to move genres into (like "Arts martiaux" for "Martial Arts")
+  * The original genres are the ones of your items (before the changes of the plugin), plus the official genres of the metadata fetchers enabled in your libraries (shown with a **TMDb** / **TheTVDB** badge, hidden while they have no items), so you can map them before they appear: the **TMDb** movie genres for the movies, the **TMDb** TV genres for the series (both in the metadata language of the library), and the **TheTVDB** genres
 * **Preview**: the number of items of each genre now and after the changes, including the unsaved ones
 * **Settings**: the language of the page (the one of the Jellyfin interface by default), the commit hash (see [Testing changes](#testing-changes), leave empty otherwise) and the [reset](#reset)
 
-The genres appearing later (new imports) are kept as they are until you change them.
+The original genres appearing later (new imports) are put in the final genre of the same name, so they are kept as they are until you move them.
 
 When you save, the changes are applied to the whole library in the background (the progress is shown at the top of the page).
 
@@ -41,11 +45,12 @@ The genres are changed in the Jellyfin metadata only (and in the NFO files if yo
 
 * **Saving the settings** runs the **Apply the genre mapping** scheduled task (Dashboard > Scheduled tasks), which maps the genres of all the movies, series, seasons, episodes, collections, music videos, trailers and videos (music genres are left untouched). It also runs once a day and can be run manually
 * **New imports and metadata refreshes** are mapped by a metadata provider that Jellyfin runs after the other providers, before saving the item, so a refresh never brings the provider genres back
-* Every change is logged, and the genres of each item before the first change of the plugin are saved in `plugins/configurations/Jellyfin.Plugin.GenreMapper/original-genres.json`
+* Every change is logged, and the original genres of each changed item are saved in `plugins/configurations/Jellyfin.Plugin.GenreMapper/original-genres.json`
+* The mapping is always applied to the original genres, never to genres it already changed: a genre can be both a final genre and moved into another one (like "Drama" → "Drame" and "Drame" → "Action"), and changing the mapping later gives the same result as if it had always been that one. Genres changed by something else since the last change of the plugin (like a metadata refresh or a manual edit) are the new original genres
 
 ### Reset
 
-The **Reset** button of the settings restores the original genres of the items changed by the plugin and resets the mapping (every genre is kept), so they are not mapped again. Only the genres are restored, the other metadata (like manual edits) is untouched. Items whose genres were changed by something else since (like a manual edit) keep their current genres.
+The **Reset** button of the settings resets the mapping (every genre is kept) and applies it, which restores the original genres of the items changed by the plugin. Only the genres are restored, the other metadata (like manual edits) is untouched. Items whose genres were changed by something else since (like a manual edit) keep their current genres.
 
 A Jellyfin metadata refresh was not used for this because it can't be limited to the genres, it would replace the other metadata too.
 

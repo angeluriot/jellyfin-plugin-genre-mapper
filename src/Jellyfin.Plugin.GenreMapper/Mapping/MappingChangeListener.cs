@@ -67,11 +67,9 @@ public sealed class MappingChangeListener : IHostedService
             return;
         }
 
+        // Also when the mapping is reset, to restore the original genres
         _mappingSignature = signature;
-        if (!GenreMap.Create(configuration.TargetGenres, configuration.Mappings).IsEmpty)
-        {
-            _logger.LogInformation("The genre mapping changed, applying it to the library");
-            _taskManager.QueueScheduledTask<ApplyMappingTask>();
-        }
+        _logger.LogInformation("The genre mapping changed, applying it to the library");
+        _taskManager.QueueScheduledTask<ApplyMappingTask>();
     }
 }
