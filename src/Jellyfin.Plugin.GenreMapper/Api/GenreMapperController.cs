@@ -8,7 +8,11 @@ using Jellyfin.Plugin.GenreMapper.Tasks;
 using MediaBrowser.Common.Api;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -25,9 +29,12 @@ namespace Jellyfin.Plugin.GenreMapper.Api;
 [Route("GenreMapper")]
 public class GenreMapperController : ControllerBase
 {
-    private const string LibraryOrigin = "Library";
     private const string TmdbOrigin = "TMDb";
     private const string TvdbOrigin = "TheTVDB";
+
+    // Names of the metadata fetchers in the library settings
+    private const string TmdbProvider = "TheMovieDb";
+    private const string TvdbProvider = "TheTVDB";
 
     private static readonly FileExtensionContentTypeProvider _contentTypes = new();
 
@@ -112,32 +119,26 @@ public class GenreMapperController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<PageData> GetData()
     {
-        string[] languages = GetMetadataLanguages();
-
-        // Genres of the items first, then the official genres of the providers
+        // Genres of the items first, then the official genres of the providers used by the libraries
         Dictionary<string, SourceGenre> genres = new(StringComparer.Ordinal);
         foreach (string genre in _mappingService.GetItems().SelectMany(item => item.Genres))
         {
-            GetOrAdd(genres, genre, LibraryOrigin).Count++;
+            GetOrAdd(genres, genre, null).Count++;
         }
 
-        foreach (string genre in languages.SelectMany(KnownGenres.GetTmdbGenres))
+        foreach ((string origin, IReadOnlyList<string> list) in GetOfficialGenres())
         {
-            GetOrAdd(genres, genre, TmdbOrigin);
-        }
-
-        foreach (string genre in KnownGenres.TvdbGenres)
-        {
-            GetOrAdd(genres, genre, TvdbOrigin);
+            foreach (string genre in list)
+            {
+                GetOrAdd(genres, genre, origin);
+            }
         }
 
         return new PageData
         {
             Version = WebFiles.GetVersionTag(),
             Languages = WebFiles.Languages,
-            MetadataLanguages = languages,
             Genres = genres.Values.OrderBy(genre => genre.Name, StringComparer.CurrentCultureIgnoreCase).ToArray(),
-            Concepts = KnownGenres.Concepts,
             RestorableItems = _history.Count
         };
     }
@@ -211,7 +212,7 @@ public class GenreMapperController : ControllerBase
         return NoContent();
     }
 
-    private static SourceGenre GetOrAdd(Dictionary<string, SourceGenre> genres, string name, string origin)
+    private static SourceGenre GetOrAdd(Dictionary<string, SourceGenre> genres, string name, string? origin)
     {
         if (!genres.TryGetValue(name, out SourceGenre? genre))
         {
@@ -219,7 +220,7 @@ public class GenreMapperController : ControllerBase
             genres[name] = genre;
         }
 
-        if (!genre.Origins.Contains(origin))
+        if (origin is not null && !genre.Origins.Contains(origin))
         {
             genre.Origins = [.. genre.Origins, origin];
         }
@@ -239,18 +240,50 @@ public class GenreMapperController : ControllerBase
     }
 
     /// <summary>
-    /// Gets the metadata languages of the libraries, which are the languages of the TMDb genres.
+    /// Gets the official genre lists of the TMDb and TheTVDB metadata fetchers enabled in the libraries:
+    /// the TMDb movie genres for the movies, the TMDb TV genres for the series (in the metadata language of the library), and the TheTVDB genres.
     /// </summary>
-    private string[] GetMetadataLanguages()
+    private IEnumerable<(string Origin, IReadOnlyList<string> Genres)> GetOfficialGenres()
     {
         string serverLanguage = _configurationManager.Configuration.PreferredMetadataLanguage;
+        HashSet<string> seen = new(StringComparer.Ordinal);
 
-        return _libraryManager.GetVirtualFolders()
-            .Select(folder => folder.LibraryOptions?.PreferredMetadataLanguage)
-            .Select(language => string.IsNullOrWhiteSpace(language) ? serverLanguage : language)
-            .DefaultIfEmpty(serverLanguage)
-            .Select(KnownGenres.ResolveLanguage)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        foreach (VirtualFolderInfo library in _libraryManager.GetVirtualFolders())
+        {
+            LibraryOptions options = library.LibraryOptions ?? new LibraryOptions();
+            string language = string.IsNullOrWhiteSpace(options.PreferredMetadataLanguage) ? serverLanguage : options.PreferredMetadataLanguage;
+            bool hasMovies = library.CollectionType is null or CollectionTypeOptions.movies;
+            bool hasSeries = library.CollectionType is null or CollectionTypeOptions.tvshows;
+
+            if (hasMovies && IsFetcherEnabled(options, nameof(Movie), TmdbProvider) && seen.Add("movie|" + language))
+            {
+                yield return (TmdbOrigin, KnownGenres.GetTmdbGenres(TmdbType.Movie, language));
+            }
+
+            if (hasSeries && IsFetcherEnabled(options, nameof(Series), TmdbProvider) && seen.Add("tv|" + language))
+            {
+                yield return (TmdbOrigin, KnownGenres.GetTmdbGenres(TmdbType.Tv, language));
+            }
+
+            if (hasSeries && IsFetcherEnabled(options, nameof(Series), TvdbProvider) && seen.Add("tvdb"))
+            {
+                yield return (TvdbOrigin, KnownGenres.TvdbGenres);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether a metadata fetcher is enabled for a type of item in a library, like Jellyfin does.
+    /// </summary>
+    private bool IsFetcherEnabled(LibraryOptions options, string itemType, string fetcher)
+    {
+        TypeOptions? typeOptions = options.GetTypeOptions(itemType);
+        if (typeOptions is not null)
+        {
+            return typeOptions.MetadataFetchers.Contains(fetcher, StringComparer.OrdinalIgnoreCase);
+        }
+
+        MetadataOptions? serverOptions = _configurationManager.GetMetadataOptionsForType(itemType);
+        return serverOptions is null || !serverOptions.DisabledMetadataFetchers.Contains(fetcher, StringComparer.OrdinalIgnoreCase);
     }
 }

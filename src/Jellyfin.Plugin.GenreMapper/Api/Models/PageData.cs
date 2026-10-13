@@ -1,5 +1,3 @@
-using Jellyfin.Plugin.GenreMapper.Genres;
-
 namespace Jellyfin.Plugin.GenreMapper.Api.Models;
 
 /// <summary>
@@ -18,19 +16,9 @@ public class PageData
     public IReadOnlyList<LanguageInfo> Languages { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the metadata languages of the libraries, as used for the TMDb genre lists.
-    /// </summary>
-    public IReadOnlyList<string> MetadataLanguages { get; set; } = [];
-
-    /// <summary>
     /// Gets or sets the known source genres: the official genres of the metadata providers and the genres of the items.
     /// </summary>
     public IReadOnlyList<SourceGenre> Genres { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets the genres with their names in every language, to suggest merges.
-    /// </summary>
-    public IReadOnlyList<GenreConcept> Concepts { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the number of items whose original genres can be restored.
@@ -70,7 +58,7 @@ public class SourceGenre
     public int Count { get; set; }
 
     /// <summary>
-    /// Gets or sets where the genre comes from: <c>Library</c>, <c>TMDb</c> or <c>TheTVDB</c>.
+    /// Gets or sets the metadata providers having the genre in their official list: <c>TMDb</c> or <c>TheTVDB</c>.
     /// </summary>
     public IReadOnlyList<string> Origins { get; set; } = [];
 }
