@@ -8,6 +8,14 @@
         "category": "Metadata",
         "versions": [
             {
+                "version": "1.0.6.0",
+                "changelog": "Arrow between the final and original genres, original genres can be duplicated to be in several final genres (like \"Action & Adventure\" in \"Action\" and \"Aventure\").",
+                "targetAbi": "12.1.0.0",
+                "sourceUrl": "https://github.com/angeluriot/jellyfin-plugin-genre-mapper/releases/download/v1.0.6.0/genre-mapper_1.0.6.0.zip",
+                "checksum": "220d8f0998ccaa274d529bd13cdb0dfe",
+                "timestamp": "2026-10-14T08:06:55Z"
+            },
+            {
                 "version": "1.0.5.0",
                 "changelog": "Settings page polish: no more flash of the delete buttons, genres without items shown by default, no confirmation when deleting a final genre, a little more space between the genres, Add button aligned with its field, emptied final genres are kept.",
                 "targetAbi": "12.1.0.0",
