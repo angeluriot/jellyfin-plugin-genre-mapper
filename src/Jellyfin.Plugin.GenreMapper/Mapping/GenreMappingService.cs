@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Extensions;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
@@ -120,7 +121,7 @@ public class GenreMappingService
         // Also run with an empty mapping, which restores the original genres
         GenreMap map = GenreMap.FromConfiguration();
         IReadOnlyList<BaseItem> items = GetItems();
-        HashSet<string> genres = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> genres = new(StringComparer.Ordinal);
         int changed = 0;
 
         try
@@ -133,9 +134,10 @@ public class GenreMappingService
                 if (MapGenres(item, map))
                 {
                     await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
-                    genres.UnionWith(item.Genres);
                     changed++;
                 }
+
+                genres.UnionWith(item.Genres);
 
                 progress.Report(95.0 * (index + 1) / items.Count);
             }
@@ -145,28 +147,56 @@ public class GenreMappingService
             _history.Save();
         }
 
-        await CreateGenresAsync(genres, cancellationToken).ConfigureAwait(false);
+        await UpdateGenreItemsAsync(genres, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation("Genre mapping applied, {Count} items changed", changed);
         progress.Report(100);
         return changed;
     }
 
     /// <summary>
-    /// Creates the genre items that don't exist yet, so the new genres are listed without waiting for a library scan.
+    /// Updates the genre items (the genres listed by Jellyfin, with their page and image) to match the genres of the items,
+    /// without waiting for a library scan.
     /// </summary>
-    /// <remarks>The genres without items anymore are removed by the next library scan.</remarks>
-    private async Task CreateGenresAsync(IEnumerable<string> names, CancellationToken cancellationToken)
+    /// <remarks>
+    /// Jellyfin matches the genre items with the genres of the items by their "clean" name (without case, accents or punctuation),
+    /// and only removes the genre items whose clean name is not used anymore (with the next library scan). So when a genre is renamed
+    /// to a name with the same clean name (like "Science-Fiction" to "Science fiction"), the genre items of the old names are kept
+    /// and listed instead of the new name. They are replaced here by a genre item with the new name.
+    /// The genre items without items anymore are removed by the next library scan, like the other ones.
+    /// </remarks>
+    private async Task UpdateGenreItemsAsync(IEnumerable<string> names, CancellationToken cancellationToken)
     {
-        HashSet<string> existing = new(
-            _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Genre] }).Select(genre => genre.Name),
-            StringComparer.OrdinalIgnoreCase);
+        // The names of the genres for each clean name, only replaced when the items use a single one
+        Dictionary<string, string[]> namesByCleanName = names
+            .GroupBy(name => name.GetCleanValue(), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Distinct(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
 
-        foreach (string name in names.Where(name => !existing.Contains(name)))
+        IReadOnlyList<BaseItem> genreItems = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Genre] });
+        BaseItem[] oldGenreItems = genreItems
+            .Where(genre => namesByCleanName.TryGetValue(genre.Name.GetCleanValue(), out string[]? used) && used.Length == 1 && used[0] != genre.Name)
+            .ToArray();
+
+        if (oldGenreItems.Length > 0)
+        {
+            foreach (BaseItem genre in oldGenreItems)
+            {
+                _logger.LogInformation("Genre item {Name} ({Id}) replaced by {NewName}", genre.Name, genre.Id, namesByCleanName[genre.Name.GetCleanValue()][0]);
+            }
+
+            // Only deletes the genre items and their metadata folder, the genres are names, not files
+            _libraryManager.DeleteItemsUnsafeFast(oldGenreItems);
+        }
+
+        HashSet<string> existing = new(genreItems.Except(oldGenreItems).Select(genre => genre.Name), StringComparer.Ordinal);
+        foreach (string name in namesByCleanName.Values.SelectMany(used => used).Where(name => !existing.Contains(name)))
         {
             try
             {
                 Genre genre = _libraryManager.GetGenre(name);
-                await genre.RefreshMetadata(cancellationToken).ConfigureAwait(false);
+                if (genre.Name == name)
+                {
+                    await genre.RefreshMetadata(cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
