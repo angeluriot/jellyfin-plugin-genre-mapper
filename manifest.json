@@ -8,6 +8,14 @@
         "category": "Metadata",
         "versions": [
             {
+                "version": "1.0.5.0",
+                "changelog": "Settings page polish: no more flash of the delete buttons, genres without items shown by default, no confirmation when deleting a final genre, a little more space between the genres, Add button aligned with its field, emptied final genres are kept.",
+                "targetAbi": "12.1.0.0",
+                "sourceUrl": "https://github.com/angeluriot/jellyfin-plugin-genre-mapper/releases/download/v1.0.5.0/genre-mapper_1.0.5.0.zip",
+                "checksum": "133bf92710627a69ae8ceb855c7c5167",
+                "timestamp": "2026-10-14T00:54:20Z"
+            },
+            {
                 "version": "1.0.4.0",
                 "changelog": "Genre list as wide as the settings page (up to 77em), final genre fields at least as wide as the removed genres title.",
                 "targetAbi": "12.1.0.0",
