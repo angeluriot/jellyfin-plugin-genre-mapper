@@ -24,17 +24,18 @@ const STYLE = '<style>'
     + '.gmTab{background:none;border:0;border-bottom:2px solid transparent;color:inherit;cursor:pointer;font:inherit;opacity:.7;padding:.8em 1.2em}'
     + '.gmTab-active{border-bottom-color:var(--jf-palette-primary-main,#00a4dc);opacity:1}'
     + '.gmToolbar{display:flex;flex-wrap:wrap;align-items:center;gap:0 2em}.gmToolbar .inputContainer{flex:1;min-width:12em}'
-    + '.gmGrid{display:grid;grid-template-columns:max-content max-content 15em;column-gap:2em;align-items:center}'
+    + '.gmGrid{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content 15em;column-gap:1.5em;align-items:center}'
     + '.gmGrid > *{min-height:2.6em}'
+    + '.gmHeaderOriginal{grid-column:3}'
     + '.gmHeader{opacity:.6;font-size:.9em;display:flex;align-items:flex-end;min-height:0;padding-bottom:.4em}'
     + '.gmSeparator{grid-column:1/-1;min-height:0;height:1px;margin:.4em 0;background:var(--jf-palette-divider,rgba(128,128,128,.25))}'
     + '.gmFinalCell{grid-column:1;align-self:start;display:flex;align-items:center;gap:.3em}'
     + '.gmFinalInput{width:var(--gmFinalWidth,12em);box-sizing:content-box;font-weight:600}'
     + '.gmFinalCell button{flex:none;opacity:.7}'
     + '.gmRemovedTitle{grid-column:1;align-self:start;display:flex;align-items:center;font-weight:600;color:#e57373}'
-    + '.gmSourceName{grid-column:2;display:flex;align-items:center;flex-wrap:wrap}'
-    + '.gmSourceSelect{grid-column:3;display:flex;align-items:center}'
-    + '.gmEmpty{grid-column:2/-1;display:flex;align-items:center;opacity:.6;font-style:italic}'
+    + '.gmSourceName{grid-column:3;display:flex;align-items:center;flex-wrap:wrap}'
+    + '.gmSourceSelect{grid-column:4;display:flex;align-items:center}'
+    + '.gmEmpty{grid-column:3/-1;display:flex;align-items:center;opacity:.6;font-style:italic}'
     + '.gmCount{opacity:.6;font-size:.9em;margin-left:.4em;white-space:nowrap}'
     + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em}'
     + '.gmSourceSelect .selectContainer{margin:0;width:100%}'
@@ -49,7 +50,7 @@ const STYLE = '<style>'
     + '.gmPreview td:not(:first-child),.gmPreview th:not(:first-child){text-align:right;width:7em}'
     + '.gmAdded{color:#81c784}.gmRemoved{color:#e57373}'
     // The forms are limited to 54em wide by the web client, too narrow for the genres
-    + 'form.gmForm{max-width:100em}'
+    + 'form.gmForm{max-width:77em}'
     + '@media (max-width:50em){.gmGrid{grid-template-columns:minmax(0,1fr) 12em;column-gap:1em}.gmHeader{display:none}'
     + '.gmFinalCell,.gmRemovedTitle,.gmEmpty{grid-column:1/-1;grid-row:auto !important}.gmFinalInput{width:100%}'
     + '.gmSourceName{grid-column:1;padding-left:1em}.gmSourceSelect{grid-column:2}}'
@@ -379,7 +380,7 @@ class ConfigPage {
 
         container.innerHTML = (rows || removed.length)
             ? '<div class="gmGrid">'
-                + '<div class="gmHeader">' + escapeHtml(t('FinalGenres')) + '</div><div class="gmHeader">' + escapeHtml(t('OriginalGenres')) + '</div><div class="gmHeader"></div>'
+                + '<div class="gmHeader">' + escapeHtml(t('FinalGenres')) + '</div><div class="gmHeader gmHeaderOriginal">' + escapeHtml(t('OriginalGenres')) + '</div>'
                 + '<div class="gmSeparator"></div>'
                 + rows
                 + (removed.length ? '<div class="gmRemovedTitle" style="grid-row:span ' + removed.length + '">' + escapeHtml(t('RemovedGenres')) + '</div>'
@@ -399,7 +400,7 @@ class ConfigPage {
         this.alignFinalInputs();
     }
 
-    /** Gives all the final genre fields the width of the longest name, so the columns stay aligned. */
+    /** Gives all the final genre fields the width of the longest name (and at least of the removed genres title), so the columns stay aligned. */
     alignFinalInputs() {
         const inputs = this.root.querySelectorAll('.gmFinalInput');
         const context = inputs.length ? document.createElement('canvas').getContext('2d') : null;
@@ -408,8 +409,11 @@ class ConfigPage {
         }
 
         context.font = getComputedStyle(inputs[0]).font;
-        const width = Math.max.apply(null, Array.from(inputs, function (input) {
-            return context.measureText(input.value).width;
+        const names = Array.from(inputs, function (input) {
+            return input.value;
+        }).concat([this.t('RemovedGenres')]);
+        const width = Math.max.apply(null, names.map(function (name) {
+            return context.measureText(name).width;
         }));
         // A little more than the text, for the cursor and the next letters
         this.root.querySelector('.gmGrid').style.setProperty('--gmFinalWidth', Math.ceil(Math.max(width, 80) + 16) + 'px');
