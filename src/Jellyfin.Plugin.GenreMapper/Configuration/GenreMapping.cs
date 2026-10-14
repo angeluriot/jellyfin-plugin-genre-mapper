@@ -1,7 +1,7 @@
 namespace Jellyfin.Plugin.GenreMapper.Configuration;
 
 /// <summary>
-/// An original genre moved into a final genre.
+/// An original genre moved into a final genre (an original genre can be in several final genres, with one mapping for each).
 /// </summary>
 public class GenreMapping
 {

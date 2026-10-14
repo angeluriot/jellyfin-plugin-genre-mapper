@@ -8,15 +8,16 @@ namespace Jellyfin.Plugin.GenreMapper.Mapping;
 /// <remarks>
 /// The mapping is always applied to the original genres of the items (see <see cref="GenreHistory"/>), never to genres it already mapped,
 /// so a genre can be both a final genre and mapped to another one (like "Drama" → "Drame" and "Drame" → "Drama").
+/// A genre can also be mapped to several final genres (like "Action &amp; Adventure" → "Action" and "Aventure").
 /// </remarks>
 public sealed class GenreMap
 {
     private static CachedMap? _current;
 
-    // Final genre of each original genre, empty to remove it
-    private readonly Dictionary<string, string> _mappings;
+    // Final genres of each original genre, none to remove it
+    private readonly Dictionary<string, string[]> _mappings;
 
-    private GenreMap(Dictionary<string, string> mappings)
+    private GenreMap(Dictionary<string, string[]> mappings)
     {
         _mappings = mappings;
     }
@@ -24,23 +25,20 @@ public sealed class GenreMap
     /// <summary>
     /// Builds a mapping.
     /// </summary>
-    /// <param name="mappings">The final genre of the original genres, the other genres are kept as they are.</param>
+    /// <param name="mappings">
+    /// The final genres of the original genres (one mapping per final genre, an empty final genre to remove it), the other genres are kept as they are.
+    /// </param>
     /// <returns>The mapping.</returns>
     public static GenreMap Create(IEnumerable<GenreMapping> mappings)
     {
-        Dictionary<string, string> result = new(StringComparer.Ordinal);
-
-        foreach (GenreMapping mapping in mappings)
-        {
-            string source = mapping.Source.Trim();
-            string target = mapping.Target.Trim();
-
-            // Genres mapped to themselves are kept anyway
-            if (source.Length > 0 && source != target)
-            {
-                result[source] = target;
-            }
-        }
+        Dictionary<string, string[]> result = mappings
+            .Select(mapping => (Source: mapping.Source.Trim(), Target: mapping.Target.Trim()))
+            .Where(mapping => mapping.Source.Length > 0)
+            .GroupBy(mapping => mapping.Source, StringComparer.Ordinal)
+            .Select(group => (Source: group.Key, Targets: group.Select(mapping => mapping.Target).Where(target => target.Length > 0).Distinct(StringComparer.Ordinal).ToArray()))
+            // Genres mapped to themselves only are kept anyway
+            .Where(mapping => mapping.Targets.Length != 1 || mapping.Targets[0] != mapping.Source)
+            .ToDictionary(mapping => mapping.Source, mapping => mapping.Targets, StringComparer.Ordinal);
 
         return new GenreMap(result);
     }
@@ -78,12 +76,9 @@ public sealed class GenreMap
 
         foreach (string genre in genres)
         {
-            string mapped = _mappings.TryGetValue(genre, out string? target) ? target : genre;
+            string[] mapped = _mappings.TryGetValue(genre, out string[]? targets) ? targets : [genre];
 
-            if (mapped.Length > 0 && seen.Add(mapped))
-            {
-                result.Add(mapped);
-            }
+            result.AddRange(mapped.Where(seen.Add));
         }
 
         return [.. result];

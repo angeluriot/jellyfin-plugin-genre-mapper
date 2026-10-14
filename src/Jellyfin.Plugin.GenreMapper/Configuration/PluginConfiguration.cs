@@ -25,7 +25,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] TargetGenres { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the final genre of the original genres (empty to remove them), the genres without mapping are kept as they are.
+    /// Gets or sets the final genres of the original genres (empty to remove them), the genres without mapping are kept as they are.
     /// </summary>
     public GenreMapping[] Mappings { get; set; } = [];
 }

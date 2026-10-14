@@ -12,7 +12,7 @@
     "SaveApplying": "The changes are being applied to the library in the background.",
     "StatusApply": "Applying the changes: {progress}%",
 
-    "GenresHelp": "On the left, the genres your items will have. On the right, the genres given by your library and the metadata providers, moved into each of them. By default every genre is in the genre of the same name, so nothing changes: move a genre into another one to replace it, rename a genre on the left (renaming it like another one merges them), or delete it to remove its genres from the items. Changes only apply after saving, check them in the Preview tab. Items with locked genres are never changed.",
+    "GenresHelp": "On the left, the genres your items will have. On the right, the genres given by your library and the metadata providers, moved into each of them. By default every genre is in the genre of the same name, so nothing changes: move a genre into another one to replace it, rename a genre on the left (renaming it like another one merges them), or delete it to remove its genres from the items. Duplicate a genre to put it in several genres (like \"Action & Adventure\" in \"Action\" and \"Adventure\"). Changes only apply after saving, check them in the Preview tab. Items with locked genres are never changed.",
     "HideUnused": "Hide the genres without items",
     "FinalGenres": "Final genres",
     "OriginalGenres": "Original genres",
@@ -23,6 +23,7 @@
     "NoGenres": "No genres.",
     "NewFinalGenre": "New final genre",
     "Add": "Add",
+    "Duplicate": "Duplicate to put it in another final genre too",
     "Delete": "Delete",
 
     "PreviewHelp": "The changes the current settings, including the unsaved ones, would make to the items.",

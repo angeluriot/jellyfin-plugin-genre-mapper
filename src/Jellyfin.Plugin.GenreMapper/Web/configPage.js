@@ -3,7 +3,7 @@
  * Edits the mapping with the built-in plugin configuration API, previews the changes and resets the genres.
  *
  * The page shows the final genres on the left, and on the right the original genres (of the items and of the metadata providers) moved into each of them.
- * By default, every original genre is in the final genre of the same name, so nothing changes.
+ * By default, every original genre is in the final genre of the same name, so nothing changes. An original genre can be duplicated to be in several final genres.
  */
 
 const PLUGIN_ID = 'd92c00c2-a490-44ec-9822-d2db5bdbfd0e';
@@ -24,7 +24,7 @@ const STYLE = '<style>'
     + '.gmTab{background:none;border:0;border-bottom:2px solid transparent;color:inherit;cursor:pointer;font:inherit;opacity:.7;padding:.8em 1.2em}'
     + '.gmTab-active{border-bottom-color:var(--jf-palette-primary-main,#00a4dc);opacity:1}'
     + '.gmToolbar{display:flex;flex-wrap:wrap;align-items:center;gap:0 2em}.gmToolbar .inputContainer{flex:1;min-width:12em}'
-    + '.gmGrid{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content 15em;gap:.3em 1.5em;align-items:center}'
+    + '.gmGrid{display:grid;grid-template-columns:max-content minmax(3em,1fr) max-content 15em max-content;gap:.3em 1.5em;align-items:center}'
     + '.gmGrid > *{min-height:2.6em}'
     + '.gmHeaderOriginal{grid-column:3}'
     + '.gmHeader{opacity:.6;font-size:.9em;display:flex;align-items:flex-end;min-height:0;padding-bottom:.4em}'
@@ -35,6 +35,8 @@ const STYLE = '<style>'
     + '.gmRemovedTitle{grid-column:1;align-self:start;display:flex;align-items:center;font-weight:600;color:#e57373}'
     + '.gmSourceName{grid-column:3;display:flex;align-items:center;flex-wrap:wrap}'
     + '.gmSourceSelect{grid-column:4;display:flex;align-items:center}'
+    + '.gmArrow{grid-column:2;justify-self:center;display:flex;align-items:center;opacity:.5}'
+    + '.gmCopy{grid-column:5;display:flex;align-items:center}.gmCopy button{opacity:.7}'
     + '.gmEmpty{grid-column:3/-1;display:flex;align-items:center;opacity:.6;font-style:italic}'
     + '.gmCount{opacity:.6;font-size:.9em;margin-left:.4em;white-space:nowrap}'
     + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em}'
@@ -51,9 +53,9 @@ const STYLE = '<style>'
     + '.gmAdded{color:#81c784}.gmRemoved{color:#e57373}'
     // The forms are limited to 54em wide by the web client, too narrow for the genres
     + 'form.gmForm{max-width:77em}'
-    + '@media (max-width:50em){.gmGrid{grid-template-columns:minmax(0,1fr) 12em;column-gap:1em}.gmHeader{display:none}'
+    + '@media (max-width:50em){.gmGrid{grid-template-columns:minmax(0,1fr) 12em max-content;column-gap:1em}.gmHeader{display:none}'
     + '.gmFinalCell,.gmRemovedTitle,.gmEmpty{grid-column:1/-1;grid-row:auto !important}.gmFinalInput{width:100%}'
-    + '.gmSourceName{grid-column:1;padding-left:1em}.gmSourceSelect{grid-column:2}}'
+    + '.gmSourceName{grid-column:1;padding-left:1em}.gmSourceSelect{grid-column:2}.gmCopy{grid-column:3}.gmArrow{display:none}}'
     + '</style>';
 
 function escapeHtml(value) {
@@ -170,12 +172,16 @@ class ConfigPage {
         });
     }
 
-    /** Builds the final genres and the final genre of each original genre from the configuration. */
+    /** Builds the final genres and the final genres of each original genre (none if it is removed) from the configuration. */
     initMapping() {
         this.finals = (this.config.TargetGenres || []).slice();
         this.assignments = new Map();
         (this.config.Mappings || []).forEach((mapping) => {
-            this.assignments.set(mapping.Source, mapping.Target || '');
+            const finals = this.assignments.get(mapping.Source) || [];
+            if (mapping.Target && finals.indexOf(mapping.Target) === -1) {
+                finals.push(mapping.Target);
+            }
+            this.assignments.set(mapping.Source, finals);
         });
         this.assignNew();
     }
@@ -184,13 +190,11 @@ class ConfigPage {
     assignNew() {
         this.sources.forEach((genre, name) => {
             if (!this.assignments.has(name)) {
-                this.assignments.set(name, name);
+                this.assignments.set(name, [name]);
             }
         });
-        this.assignments.forEach((final) => {
-            if (final && this.finals.indexOf(final) === -1) {
-                this.finals.push(final);
-            }
+        this.assignments.forEach((finals) => {
+            finals.forEach((final) => this.addFinal(final));
         });
         this.finals.sort(compareNames);
     }
@@ -218,21 +222,39 @@ class ConfigPage {
         return genre ? genre.Count : 0;
     }
 
-    /** The original genres in a final genre, or the removed ones for an empty name. */
-    getSources(final) {
+    /**
+     * The original genres in a final genre, with the index of the final genre in their list (an original genre can be in a final genre twice,
+     * right after being duplicated), or the removed original genres (with an index of -1) for an empty name.
+     */
+    getEntries(final) {
         const result = [];
-        this.assignments.forEach(function (assigned, source) {
-            if (assigned === final) {
-                result.push(source);
+        this.assignments.forEach(function (finals, source) {
+            if (!final) {
+                if (!finals.length) {
+                    result.push({ source: source, index: -1 });
+                }
+                return;
             }
+            finals.forEach(function (assigned, index) {
+                if (assigned === final) {
+                    result.push({ source: source, index: index });
+                }
+            });
         });
-        return result.sort(compareNames);
+        return result.sort(function (a, b) {
+            return compareNames(a.source, b.source) || a.index - b.index;
+        });
     }
 
     getMapping() {
         const mappings = [];
-        this.assignments.forEach(function (target, source) {
-            mappings.push({ Source: source, Target: target });
+        this.assignments.forEach(function (finals, source) {
+            const unique = finals.filter(function (final, index) {
+                return finals.indexOf(final) === index;
+            });
+            (unique.length ? unique : ['']).forEach(function (final) {
+                mappings.push({ Source: source, Target: final });
+            });
         });
         return { TargetGenres: this.finals.slice(), Mappings: mappings };
     }
@@ -246,10 +268,15 @@ class ConfigPage {
         }
     }
 
-    /** Moves the original genres of a final genre into another one (or removes them), and deletes the final genre. */
-    moveAll(final, target) {
-        this.getSources(final).forEach((source) => {
-            this.assignments.set(source, target);
+    /** Replaces a final genre in the lists of the original genres, an empty name removes it, without duplicates. */
+    replaceFinal(final, name) {
+        this.assignments.forEach((finals, source) => {
+            const replaced = finals.map(function (assigned) {
+                return assigned === final ? name : assigned;
+            }).filter(function (assigned, index, list) {
+                return assigned && list.indexOf(assigned) === index;
+            });
+            this.assignments.set(source, replaced);
         });
         this.finals = this.finals.filter(function (other) {
             return other !== final;
@@ -262,7 +289,28 @@ class ConfigPage {
             return;
         }
         this.addFinal(name);
-        this.moveAll(final, name);
+        this.replaceFinal(final, name);
+    }
+
+    /** Moves an original genre (one of its copies) into a final genre, or removes it for an empty name. */
+    move(source, index, final) {
+        const finals = this.assignments.get(source);
+        if (index < 0) {
+            finals.push(final);
+        } else if (!final) {
+            finals.splice(index, 1);
+        } else if (finals.indexOf(final) === -1) {
+            finals[index] = final;
+        } else {
+            // Already in this final genre
+            finals.splice(index, 1);
+        }
+    }
+
+    /** Adds a copy of an original genre right under it, to move it into another final genre. */
+    duplicate(source, index) {
+        const finals = this.assignments.get(source);
+        finals.splice(index + 1, 0, finals[index]);
     }
 
     // ------------------------------------------------------------- rendering
@@ -348,22 +396,22 @@ class ConfigPage {
             + '<option value="' + REMOVE + '">' + escapeHtml(t('RemoveGenre')) + '</option>';
 
         const rows = this.finals.map((final) => {
-            const allSources = this.getSources(final);
-            const sources = allSources.filter(isVisible);
-            // The final genres whose original genres are all hidden are hidden too, but not the empty ones (just added)
-            if ((allSources.length && !sources.length) || !matches([final].concat(sources))) {
+            const allEntries = this.getEntries(final);
+            const entries = allEntries.filter((entry) => isVisible(entry.source));
+            // The final genres whose original genres are all hidden are hidden too, but not the empty ones
+            if ((allEntries.length && !entries.length) || !matches([final].concat(entries.map((entry) => entry.source)))) {
                 return '';
             }
 
-            return '<div class="gmFinalCell" data-final="' + escapeHtml(final) + '" style="grid-row:span ' + Math.max(sources.length, 1) + '">'
+            return '<div class="gmFinalCell" data-final="' + escapeHtml(final) + '" style="grid-row:span ' + Math.max(entries.length, 1) + '">'
                 + '<input type="text" class="emby-input gmFinalInput" autocomplete="off" value="' + escapeHtml(final) + '" aria-label="' + escapeHtml(t('FinalGenres')) + '" />'
                 + this.iconButton('delete', 'delete', t('Delete'))
                 + '</div>'
-                + (sources.length ? sources.map((source) => this.sourceHtml(source, moveOptions)).join('') : '<div class="gmEmpty">' + escapeHtml(t('NoOriginalGenres')) + '</div>')
+                + (entries.length ? entries.map((entry) => this.sourceHtml(entry, moveOptions)).join('') : '<div class="gmEmpty">' + escapeHtml(t('NoOriginalGenres')) + '</div>')
                 + '<div class="gmSeparator"></div>';
         }).join('');
 
-        const removed = this.getSources('').filter((source) => isVisible(source) && matches([source]));
+        const removed = this.getEntries('').filter((entry) => isVisible(entry.source) && matches([entry.source]));
 
         container.innerHTML = (rows || removed.length)
             ? '<div class="gmGrid">'
@@ -371,12 +419,13 @@ class ConfigPage {
                 + '<div class="gmSeparator"></div>'
                 + rows
                 + (removed.length ? '<div class="gmRemovedTitle" style="grid-row:span ' + removed.length + '">' + escapeHtml(t('RemovedGenres')) + '</div>'
-                    + removed.map((source) => this.sourceHtml(source, moveOptions)).join('') : '')
+                    + removed.map((entry) => this.sourceHtml(entry, moveOptions)).join('') : '')
                 + '</div>'
             : '<p class="fieldDescription">' + escapeHtml(t('NoGenres')) + '</p>';
 
         container.querySelectorAll('select[data-source]').forEach((select) => {
-            const final = this.assignments.get(select.getAttribute('data-source'));
+            const index = Number(select.getAttribute('data-index'));
+            const final = index < 0 ? '' : this.assignments.get(select.getAttribute('data-source'))[index];
             const current = select.querySelector('option[value="' + CSS.escape(final ? FINAL_PREFIX + final : REMOVE) + '"]');
             if (current) {
                 current.remove();
@@ -406,15 +455,21 @@ class ConfigPage {
         this.root.querySelector('.gmGrid').style.setProperty('--gmFinalWidth', Math.ceil(Math.max(width, 80) + 16) + 'px');
     }
 
-    sourceHtml(source, moveOptions) {
+    /** A row of an original genre: arrow to its final genre, name, "Move to" select and duplicate button (except for the removed genres). */
+    sourceHtml(entry, moveOptions) {
+        const source = entry.source;
         const genre = this.sources.get(source);
         const badges = (genre ? genre.Origins : []).map(function (origin) {
             return '<span class="gmBadge">' + escapeHtml(origin) + '</span>';
         }).join('');
 
-        return '<div class="gmSourceName">' + escapeHtml(source) + '<span class="gmCount">' + escapeHtml(this.t.count(this.getCount(source))) + '</span>' + badges + '</div>'
-            + '<div class="gmSourceSelect"><div class="selectContainer"><select is="emby-select" data-source="' + escapeHtml(source) + '" aria-label="'
-            + escapeHtml(this.t('MoveTo')) + '">' + moveOptions + '</select></div></div>';
+        const data = ' data-source="' + escapeHtml(source) + '" data-index="' + entry.index + '"';
+
+        return '<div class="gmArrow"><span class="material-icons arrow_back" aria-hidden="true"></span></div>'
+            + '<div class="gmSourceName">' + escapeHtml(source) + '<span class="gmCount">' + escapeHtml(this.t.count(this.getCount(source))) + '</span>' + badges + '</div>'
+            + '<div class="gmSourceSelect"><div class="selectContainer"><select is="emby-select"' + data + ' aria-label="'
+            + escapeHtml(this.t('MoveTo')) + '">' + moveOptions + '</select></div></div>'
+            + (entry.index < 0 ? '' : '<div class="gmCopy"' + data + '>' + this.iconButton('duplicate', 'content_copy', this.t('Duplicate')) + '</div>');
     }
 
     iconButton(action, icon, title) {
@@ -540,6 +595,12 @@ class ConfigPage {
             case 'delete':
                 this.deleteFinal(final);
                 break;
+            case 'duplicate': {
+                const copy = button.closest('.gmCopy');
+                this.duplicate(copy.getAttribute('data-source'), Number(copy.getAttribute('data-index')));
+                this.renderFinals();
+                break;
+            }
             default:
                 break;
         }
@@ -547,7 +608,7 @@ class ConfigPage {
 
     /** Deletes a final genre, its original genres are removed from the items. */
     deleteFinal(final) {
-        this.moveAll(final, '');
+        this.replaceFinal(final, '');
         this.renderFinals();
     }
 
@@ -594,7 +655,7 @@ class ConfigPage {
             }
         } else if (source !== null) {
             if (element.value) {
-                this.assignments.set(source, element.value === REMOVE ? '' : element.value.substring(FINAL_PREFIX.length));
+                this.move(source, Number(element.getAttribute('data-index')), element.value === REMOVE ? '' : element.value.substring(FINAL_PREFIX.length));
                 this.renderFinals();
             }
         } else if (element.classList.contains('gmHideUnused')) {
