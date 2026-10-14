@@ -24,22 +24,22 @@ const STYLE = '<style>'
     + '.gmTab{background:none;border:0;border-bottom:2px solid transparent;color:inherit;cursor:pointer;font:inherit;opacity:.7;padding:.8em 1.2em}'
     + '.gmTab-active{border-bottom-color:var(--jf-palette-primary-main,#00a4dc);opacity:1}'
     + '.gmToolbar{display:flex;flex-wrap:wrap;align-items:center;gap:0 2em}.gmToolbar .inputContainer{flex:1;min-width:12em}'
-    + '.gmFinal{display:grid;grid-template-columns:minmax(10em,32%) 1fr;gap:.5em 1.5em;align-items:start;padding:.7em 0;'
-    + 'border-bottom:1px solid var(--jf-palette-divider,rgba(128,128,128,.25))}'
-    + '.gmHeader{opacity:.6;font-size:.9em;padding-bottom:.4em}'
-    + '.gmFinalName{display:flex;align-items:center;gap:.2em;min-height:2.6em;font-weight:600;overflow-wrap:anywhere}'
-    + '.gmFinalName .gmCount{font-weight:normal}'
-    + '.gmFinalName button{flex:none;opacity:.7}'
-    + '.gmRemovedTitle{display:flex;align-items:center;min-height:2.6em;font-weight:600;color:#e57373}'
-    + '.gmSources{display:flex;flex-direction:column;gap:.3em;min-width:0}'
-    + '.gmSource{display:flex;align-items:center;gap:1em;min-height:2.6em}'
-    + '.gmSourceName{flex:1;min-width:0;overflow-wrap:anywhere}'
-    + '.gmEmpty{display:flex;align-items:center;min-height:2.6em;opacity:.6;font-style:italic}'
+    + '.gmGrid{display:grid;grid-template-columns:max-content max-content 15em;column-gap:2em;align-items:center}'
+    + '.gmGrid > *{min-height:2.6em}'
+    + '.gmHeader{opacity:.6;font-size:.9em;display:flex;align-items:flex-end;min-height:0;padding-bottom:.4em}'
+    + '.gmSeparator{grid-column:1/-1;min-height:0;height:1px;margin:.4em 0;background:var(--jf-palette-divider,rgba(128,128,128,.25))}'
+    + '.gmFinalCell{grid-column:1;align-self:start;display:flex;align-items:center;gap:.3em}'
+    + '.gmFinalInput{width:var(--gmFinalWidth,12em);box-sizing:content-box;font-weight:600}'
+    + '.gmFinalCell button{flex:none;opacity:.7}'
+    + '.gmRemovedTitle{grid-column:1;align-self:start;display:flex;align-items:center;font-weight:600;color:#e57373}'
+    + '.gmSourceName{grid-column:2;display:flex;align-items:center;flex-wrap:wrap}'
+    + '.gmSourceSelect{grid-column:3;display:flex;align-items:center}'
+    + '.gmEmpty{grid-column:2/-1;display:flex;align-items:center;opacity:.6;font-style:italic}'
     + '.gmCount{opacity:.6;font-size:.9em;margin-left:.4em;white-space:nowrap}'
-    + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em;vertical-align:middle}'
-    + '.gmSource .selectContainer{margin:0;flex:0 0 13em}'
-    + '.gmSource .selectLabel{display:none}'
-    + '.gmSource .selectArrowContainer{top:0;bottom:0;display:flex;align-items:center}.gmSource .selectArrow{margin:0}'
+    + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em}'
+    + '.gmSourceSelect .selectContainer{margin:0;width:100%}'
+    + '.gmSourceSelect .selectLabel{display:none}'
+    + '.gmSourceSelect .selectArrowContainer{top:0;bottom:0;display:flex;align-items:center}.gmSourceSelect .selectArrow{margin:0}'
     + '.gmInline{display:flex;align-items:flex-end;gap:1em}.gmInline .inputContainer{flex:1;margin:0}.gmInline .emby-button{margin:0;flex:none}'
     + '.gmAdd{margin-top:1.5em}'
     + '.gmBox{padding:1em 1.2em;border:1px solid var(--jf-palette-divider,rgba(128,128,128,.3));border-radius:.5em;margin-bottom:2em}'
@@ -48,7 +48,11 @@ const STYLE = '<style>'
     + '.gmPreview table{width:100%;border-collapse:collapse}.gmPreview th,.gmPreview td{text-align:left;padding:.4em .5em;border-bottom:1px solid var(--jf-palette-divider,rgba(128,128,128,.2))}'
     + '.gmPreview td:not(:first-child),.gmPreview th:not(:first-child){text-align:right;width:7em}'
     + '.gmAdded{color:#81c784}.gmRemoved{color:#e57373}'
-    + '@media (max-width:50em){.gmFinal{grid-template-columns:1fr}.gmHeader{display:none}.gmSources{padding-left:1em}}'
+    // The forms are limited to 54em wide by the web client, too narrow for the genres
+    + 'form.gmForm{max-width:100em}'
+    + '@media (max-width:50em){.gmGrid{grid-template-columns:minmax(0,1fr) 12em;column-gap:1em}.gmHeader{display:none}'
+    + '.gmFinalCell,.gmRemovedTitle,.gmEmpty{grid-column:1/-1;grid-row:auto !important}.gmFinalInput{width:100%}'
+    + '.gmSourceName{grid-column:1;padding-left:1em}.gmSourceSelect{grid-column:2}}'
     + '</style>';
 
 function escapeHtml(value) {
@@ -134,7 +138,6 @@ class ConfigPage {
         this.root = view.querySelector('.gmConfig');
         this.config = config;
         this.activeTab = 'Genres';
-        this.renaming = null;
         this.hideUnused = true;
         this.statusTimer = null;
         this.pollUntil = 0;
@@ -302,7 +305,6 @@ class ConfigPage {
             + '<label class="checkboxContainer"><input is="emby-checkbox" type="checkbox" class="gmHideUnused"' + (this.hideUnused ? ' checked' : '') + ' />'
             + '<span>' + escapeHtml(t('HideUnused')) + '</span></label>'
             + '</div>'
-            + '<div class="gmFinal gmHeader"><div>' + escapeHtml(t('FinalGenres')) + '</div><div>' + escapeHtml(t('OriginalGenres')) + '</div></div>'
             + '<div class="gmFinals"></div>'
             + '<div class="gmInline gmAdd">'
             + '<div class="inputContainer"><input is="emby-input" type="text" class="gmNewFinal" autocomplete="off" label="' + escapeHtml(t('NewFinalGenre')) + '" /></div>'
@@ -361,36 +363,29 @@ class ConfigPage {
             const allSources = this.getSources(final);
             const sources = allSources.filter(isVisible);
             // The final genres whose original genres are all hidden are hidden too, but not the empty ones (just added)
-            if ((allSources.length && !sources.length && this.renaming !== final) || !matches([final].concat(sources))) {
+            if ((allSources.length && !sources.length) || !matches([final].concat(sources))) {
                 return '';
             }
 
-            const name = this.renaming === final
-                ? '<div class="gmInline" style="width:100%">'
-                    + '<div class="inputContainer"><input is="emby-input" type="text" class="gmRenameInput" autocomplete="off" label="' + escapeHtml(t('NewName'))
-                    + '" value="' + escapeHtml(final) + '" /></div>'
-                    + this.iconButton('rename', 'check', t('Rename'))
-                    + this.iconButton('cancelRename', 'close', t('Cancel'))
-                    + '</div>'
-                : '<span>' + escapeHtml(final) + '<span class="gmCount">' + escapeHtml(t.count(this.getFinalCount(final))) + '</span></span>'
-                    + this.iconButton('edit', 'edit', t('Rename'))
-                    + this.iconButton('delete', 'delete', t('Delete'));
-
-            return '<div class="gmFinal" data-final="' + escapeHtml(final) + '">'
-                + '<div class="gmFinalName">' + name + '</div>'
-                + '<div class="gmSources">'
-                + (sources.length ? sources.map((source) => this.sourceHtml(source, moveOptions)).join('') : '<div class="gmEmpty">' + escapeHtml(t('NoOriginalGenres')) + '</div>')
+            return '<div class="gmFinalCell" data-final="' + escapeHtml(final) + '" style="grid-row:span ' + Math.max(sources.length, 1) + '">'
+                + '<input type="text" class="emby-input gmFinalInput" autocomplete="off" value="' + escapeHtml(final) + '" aria-label="' + escapeHtml(t('FinalGenres')) + '" />'
+                + this.iconButton('delete', 'delete', t('Delete'))
                 + '</div>'
-                + '</div>';
+                + (sources.length ? sources.map((source) => this.sourceHtml(source, moveOptions)).join('') : '<div class="gmEmpty">' + escapeHtml(t('NoOriginalGenres')) + '</div>')
+                + '<div class="gmSeparator"></div>';
         }).join('');
 
         const removed = this.getSources('').filter((source) => isVisible(source) && matches([source]));
 
-        container.innerHTML = (rows || '<p class="fieldDescription">' + escapeHtml(t('NoGenres')) + '</p>')
-            + (removed.length ? '<div class="gmFinal" data-final="">'
-                + '<div class="gmRemovedTitle">' + escapeHtml(t('RemovedGenres')) + '</div>'
-                + '<div class="gmSources">' + removed.map((source) => this.sourceHtml(source, moveOptions)).join('') + '</div>'
-                + '</div>' : '');
+        container.innerHTML = (rows || removed.length)
+            ? '<div class="gmGrid">'
+                + '<div class="gmHeader">' + escapeHtml(t('FinalGenres')) + '</div><div class="gmHeader">' + escapeHtml(t('OriginalGenres')) + '</div><div class="gmHeader"></div>'
+                + '<div class="gmSeparator"></div>'
+                + rows
+                + (removed.length ? '<div class="gmRemovedTitle" style="grid-row:span ' + removed.length + '">' + escapeHtml(t('RemovedGenres')) + '</div>'
+                    + removed.map((source) => this.sourceHtml(source, moveOptions)).join('') : '')
+                + '</div>'
+            : '<p class="fieldDescription">' + escapeHtml(t('NoGenres')) + '</p>';
 
         container.querySelectorAll('select[data-source]').forEach((select) => {
             const final = this.assignments.get(select.getAttribute('data-source'));
@@ -401,11 +396,23 @@ class ConfigPage {
             select.value = '';
         });
 
-        const renameInput = container.querySelector('.gmRenameInput');
-        if (renameInput) {
-            renameInput.focus();
-            renameInput.select();
+        this.alignFinalInputs();
+    }
+
+    /** Gives all the final genre fields the width of the longest name, so the columns stay aligned. */
+    alignFinalInputs() {
+        const inputs = this.root.querySelectorAll('.gmFinalInput');
+        const context = inputs.length ? document.createElement('canvas').getContext('2d') : null;
+        if (!context) {
+            return;
         }
+
+        context.font = getComputedStyle(inputs[0]).font;
+        const width = Math.max.apply(null, Array.from(inputs, function (input) {
+            return context.measureText(input.value).width;
+        }));
+        // A little more than the text, for the cursor and the next letters
+        this.root.querySelector('.gmGrid').style.setProperty('--gmFinalWidth', Math.ceil(Math.max(width, 80) + 16) + 'px');
     }
 
     sourceHtml(source, moveOptions) {
@@ -414,11 +421,9 @@ class ConfigPage {
             return '<span class="gmBadge">' + escapeHtml(origin) + '</span>';
         }).join('');
 
-        return '<div class="gmSource">'
-            + '<div class="gmSourceName">' + escapeHtml(source) + '<span class="gmCount">' + escapeHtml(this.t.count(this.getCount(source))) + '</span>' + badges + '</div>'
-            + '<div class="selectContainer"><select is="emby-select" data-source="' + escapeHtml(source) + '" aria-label="' + escapeHtml(this.t('MoveTo')) + '">'
-            + moveOptions + '</select></div>'
-            + '</div>';
+        return '<div class="gmSourceName">' + escapeHtml(source) + '<span class="gmCount">' + escapeHtml(this.t.count(this.getCount(source))) + '</span>' + badges + '</div>'
+            + '<div class="gmSourceSelect"><div class="selectContainer"><select is="emby-select" data-source="' + escapeHtml(source) + '" aria-label="'
+            + escapeHtml(this.t('MoveTo')) + '">' + moveOptions + '</select></div></div>';
     }
 
     iconButton(action, icon, title) {
@@ -509,8 +514,8 @@ class ConfigPage {
             return;
         }
 
-        const row = button.closest('.gmFinal');
-        const final = row ? row.getAttribute('data-final') : null;
+        const cell = button.closest('.gmFinalCell');
+        const final = cell ? cell.getAttribute('data-final') : null;
 
         switch (button.getAttribute('data-action')) {
             case 'tab':
@@ -541,23 +546,6 @@ class ConfigPage {
                 }
                 break;
             }
-            case 'edit':
-                this.renaming = final;
-                this.renderFinals();
-                break;
-            case 'rename': {
-                const name = row.querySelector('.gmRenameInput').value.trim();
-                if (name) {
-                    this.rename(final, name);
-                }
-                this.renaming = null;
-                this.renderFinals();
-                break;
-            }
-            case 'cancelRename':
-                this.renaming = null;
-                this.renderFinals();
-                break;
             case 'delete':
                 this.deleteFinal(final);
                 break;
@@ -586,16 +574,20 @@ class ConfigPage {
         }
     }
 
-    /** Enter in a text field runs its action instead of saving the form, Escape cancels the renaming. */
+    /** Enter in a text field runs its action instead of saving the form, Escape cancels the renaming of a final genre. */
     onKeyDown(event) {
         const target = event.target;
         if (target.tagName !== 'INPUT' || (event.key !== 'Enter' && event.key !== 'Escape')) {
             return;
         }
 
-        if (target.classList.contains('gmRenameInput')) {
+        if (target.classList.contains('gmFinalInput')) {
             event.preventDefault();
-            target.closest('.gmFinal').querySelector('[data-action="' + (event.key === 'Enter' ? 'rename' : 'cancelRename') + '"]').click();
+            if (event.key === 'Escape') {
+                target.value = target.closest('.gmFinalCell').getAttribute('data-final');
+            }
+            // Renamed by the change event
+            target.blur();
         } else if (event.key === 'Enter' && (target.classList.contains('gmNewFinal') || target.type === 'search')) {
             event.preventDefault();
             if (target.classList.contains('gmNewFinal')) {
@@ -614,7 +606,16 @@ class ConfigPage {
         const element = event.target;
         const source = element.getAttribute('data-source');
 
-        if (source !== null) {
+        if (element.classList.contains('gmFinalInput')) {
+            const final = element.closest('.gmFinalCell').getAttribute('data-final');
+            const name = element.value.trim();
+            if (name && name !== final) {
+                this.rename(final, name);
+                this.renderFinals();
+            } else {
+                element.value = final;
+            }
+        } else if (source !== null) {
             if (element.value) {
                 this.move(source, element.value === REMOVE ? '' : element.value.substring(FINAL_PREFIX.length));
                 this.renderFinals();

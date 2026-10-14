@@ -23,9 +23,6 @@
     "NoGenres": "Aucun genre.",
     "NewFinalGenre": "Nouveau genre final",
     "Add": "Ajouter",
-    "NewName": "Nouveau nom",
-    "Rename": "Renommer",
-    "Cancel": "Annuler",
     "Delete": "Supprimer",
     "DeleteConfirm": "Supprimer le genre final « {genre} » ? Ses genres ({genres}) seront retirés de {count} éléments.",
 

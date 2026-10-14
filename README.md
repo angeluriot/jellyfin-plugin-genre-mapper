@@ -30,7 +30,7 @@ Open **Dashboard > Plugins > Genre Mapper** (also in the dashboard menu). The de
 * **Genres**: on the left, the final genres (the genres your items will have). On the right, the original genres in each of them, with their number of items:
   * By default every original genre is in the final genre of the same name, so nothing changes
   * **Move to** moves an original genre into another final genre, or removes it from the items (it then appears in "These genres will be removed")
-  * The pencil renames a final genre, renaming it like another one merges them. The bin deletes it, its original genres are then removed from the items. **Add** creates a new final genre to move genres into (like "Arts martiaux" for "Martial Arts")
+  * The name of a final genre can be edited directly, renaming it like another one merges them. The bin deletes it, its original genres are then removed from the items. **Add** creates a new final genre to move genres into (like "Arts martiaux" for "Martial Arts")
   * The original genres are the ones of your items (before the changes of the plugin), plus the official genres of the metadata fetchers enabled in your libraries (shown with a **TMDb** / **TheTVDB** badge, hidden while they have no items), so you can map them before they appear: the **TMDb** movie genres for the movies, the **TMDb** TV genres for the series (both in the metadata language of the library), and the **TheTVDB** genres
 * **Preview**: the number of items of each genre now and after the changes, including the unsaved ones
 * **Settings**: the language of the page (the one of the Jellyfin interface by default), the commit hash (see [Testing changes](#testing-changes), leave empty otherwise) and the [reset](#reset)

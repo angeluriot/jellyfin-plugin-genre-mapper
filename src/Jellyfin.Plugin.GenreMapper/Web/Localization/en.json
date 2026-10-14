@@ -23,9 +23,6 @@
     "NoGenres": "No genres.",
     "NewFinalGenre": "New final genre",
     "Add": "Add",
-    "NewName": "New name",
-    "Rename": "Rename",
-    "Cancel": "Cancel",
     "Delete": "Delete",
     "DeleteConfirm": "Delete the final genre \"{genre}\"? Its genres ({genres}) will be removed from {count} items.",
 
