@@ -8,6 +8,14 @@
         "category": "Metadata",
         "versions": [
             {
+                "version": "1.0.7.0",
+                "changelog": "Bin to remove the copies of an original genre (disabled when there is a single one), smaller copy button closer to the select, slightly wider settings page.",
+                "targetAbi": "12.1.0.0",
+                "sourceUrl": "https://github.com/angeluriot/jellyfin-plugin-genre-mapper/releases/download/v1.0.7.0/genre-mapper_1.0.7.0.zip",
+                "checksum": "0683610afbed7ba15e082e87ab295869",
+                "timestamp": "2026-10-14T08:17:57Z"
+            },
+            {
                 "version": "1.0.6.0",
                 "changelog": "Arrow between the final and original genres, original genres can be duplicated to be in several final genres (like \"Action & Adventure\" in \"Action\" and \"Aventure\").",
                 "targetAbi": "12.1.0.0",
