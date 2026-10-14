@@ -24,6 +24,7 @@
     "NewFinalGenre": "Nouveau genre final",
     "Add": "Ajouter",
     "Duplicate": "Dupliquer pour le mettre aussi dans un autre genre final",
+    "RemoveCopy": "Supprimer ce doublon",
     "Delete": "Supprimer",
 
     "PreviewHelp": "Les changements que les paramètres actuels, y compris ceux non enregistrés, feraient aux éléments.",

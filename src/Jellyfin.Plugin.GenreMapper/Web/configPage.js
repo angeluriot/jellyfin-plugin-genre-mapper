@@ -36,7 +36,9 @@ const STYLE = '<style>'
     + '.gmSourceName{grid-column:3;display:flex;align-items:center;flex-wrap:wrap}'
     + '.gmSourceSelect{grid-column:4;display:flex;align-items:center}'
     + '.gmArrow{grid-column:2;justify-self:center;display:flex;align-items:center;opacity:.5}'
-    + '.gmCopy{grid-column:5;display:flex;align-items:center}.gmCopy button{opacity:.7}'
+    + '.gmActions{grid-column:5;display:flex;align-items:center;margin-left:-.9em}'
+    + '.gmActions button{padding:.3em;opacity:.7}.gmActions .material-icons{font-size:1.25em}'
+    + '.gmActions button[disabled]{opacity:.25;cursor:default}'
     + '.gmEmpty{grid-column:3/-1;display:flex;align-items:center;opacity:.6;font-style:italic}'
     + '.gmCount{opacity:.6;font-size:.9em;margin-left:.4em;white-space:nowrap}'
     + '.gmBadge{display:inline-block;font-size:.7em;padding:.1em .6em;border-radius:1em;background:rgba(128,128,128,.25);margin-left:.5em}'
@@ -52,10 +54,10 @@ const STYLE = '<style>'
     + '.gmPreview td:not(:first-child),.gmPreview th:not(:first-child){text-align:right;width:7em}'
     + '.gmAdded{color:#81c784}.gmRemoved{color:#e57373}'
     // The forms are limited to 54em wide by the web client, too narrow for the genres
-    + 'form.gmForm{max-width:77em}'
+    + 'form.gmForm{max-width:82em}'
     + '@media (max-width:50em){.gmGrid{grid-template-columns:minmax(0,1fr) 12em max-content;column-gap:1em}.gmHeader{display:none}'
     + '.gmFinalCell,.gmRemovedTitle,.gmEmpty{grid-column:1/-1;grid-row:auto !important}.gmFinalInput{width:100%}'
-    + '.gmSourceName{grid-column:1;padding-left:1em}.gmSourceSelect{grid-column:2}.gmCopy{grid-column:3}.gmArrow{display:none}}'
+    + '.gmSourceName{grid-column:1;padding-left:1em}.gmSourceSelect{grid-column:2}.gmActions{grid-column:3;margin-left:0}.gmArrow{display:none}}'
     + '</style>';
 
 function escapeHtml(value) {
@@ -469,11 +471,15 @@ class ConfigPage {
             + '<div class="gmSourceName">' + escapeHtml(source) + '<span class="gmCount">' + escapeHtml(this.t.count(this.getCount(source))) + '</span>' + badges + '</div>'
             + '<div class="gmSourceSelect"><div class="selectContainer"><select is="emby-select"' + data + ' aria-label="'
             + escapeHtml(this.t('MoveTo')) + '">' + moveOptions + '</select></div></div>'
-            + (entry.index < 0 ? '' : '<div class="gmCopy"' + data + '>' + this.iconButton('duplicate', 'content_copy', this.t('Duplicate')) + '</div>');
+            + (entry.index < 0 ? '' : '<div class="gmActions"' + data + '>'
+                + this.iconButton('duplicate', 'content_copy', this.t('Duplicate'))
+                // Only the copies can be removed here, an original genre in a single final genre is removed with "Move to"
+                + this.iconButton('removeCopy', 'delete', this.t('RemoveCopy'), this.assignments.get(source).length < 2)
+                + '</div>');
     }
 
-    iconButton(action, icon, title) {
-        return '<button type="button" class="paper-icon-button-light" data-action="' + action + '" title="' + escapeHtml(title) + '">'
+    iconButton(action, icon, title, disabled) {
+        return '<button type="button" class="paper-icon-button-light" data-action="' + action + '" title="' + escapeHtml(title) + '"' + (disabled ? ' disabled' : '') + '>'
             + '<span class="material-icons ' + icon + '" aria-hidden="true"></span></button>';
     }
 
@@ -595,9 +601,16 @@ class ConfigPage {
             case 'delete':
                 this.deleteFinal(final);
                 break;
-            case 'duplicate': {
-                const copy = button.closest('.gmCopy');
-                this.duplicate(copy.getAttribute('data-source'), Number(copy.getAttribute('data-index')));
+            case 'duplicate':
+            case 'removeCopy': {
+                const actions = button.closest('.gmActions');
+                const source = actions.getAttribute('data-source');
+                const index = Number(actions.getAttribute('data-index'));
+                if (button.getAttribute('data-action') === 'duplicate') {
+                    this.duplicate(source, index);
+                } else {
+                    this.assignments.get(source).splice(index, 1);
+                }
                 this.renderFinals();
                 break;
             }

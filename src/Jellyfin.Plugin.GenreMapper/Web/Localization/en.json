@@ -24,6 +24,7 @@
     "NewFinalGenre": "New final genre",
     "Add": "Add",
     "Duplicate": "Duplicate to put it in another final genre too",
+    "RemoveCopy": "Remove this copy",
     "Delete": "Delete",
 
     "PreviewHelp": "The changes the current settings, including the unsaved ones, would make to the items.",
