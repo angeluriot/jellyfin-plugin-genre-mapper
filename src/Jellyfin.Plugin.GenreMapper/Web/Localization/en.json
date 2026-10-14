@@ -24,7 +24,6 @@
     "NewFinalGenre": "New final genre",
     "Add": "Add",
     "Delete": "Delete",
-    "DeleteConfirm": "Delete the final genre \"{genre}\"? Its genres ({genres}) will be removed from {count} items.",
 
     "PreviewHelp": "The changes the current settings, including the unsaved ones, would make to the items.",
     "Refresh": "Refresh",

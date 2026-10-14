@@ -24,7 +24,7 @@ const STYLE = '<style>'
     + '.gmTab{background:none;border:0;border-bottom:2px solid transparent;color:inherit;cursor:pointer;font:inherit;opacity:.7;padding:.8em 1.2em}'
     + '.gmTab-active{border-bottom-color:var(--jf-palette-primary-main,#00a4dc);opacity:1}'
     + '.gmToolbar{display:flex;flex-wrap:wrap;align-items:center;gap:0 2em}.gmToolbar .inputContainer{flex:1;min-width:12em}'
-    + '.gmGrid{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content 15em;column-gap:1.5em;align-items:center}'
+    + '.gmGrid{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content 15em;gap:.3em 1.5em;align-items:center}'
     + '.gmGrid > *{min-height:2.6em}'
     + '.gmHeaderOriginal{grid-column:3}'
     + '.gmHeader{opacity:.6;font-size:.9em;display:flex;align-items:flex-end;min-height:0;padding-bottom:.4em}'
@@ -41,8 +41,8 @@ const STYLE = '<style>'
     + '.gmSourceSelect .selectContainer{margin:0;width:100%}'
     + '.gmSourceSelect .selectLabel{display:none}'
     + '.gmSourceSelect .selectArrowContainer{top:0;bottom:0;display:flex;align-items:center}.gmSourceSelect .selectArrow{margin:0}'
-    + '.gmInline{display:flex;align-items:flex-end;gap:1em}.gmInline .inputContainer{flex:1;margin:0}.gmInline .emby-button{margin:0;flex:none}'
-    + '.gmAdd{margin-top:1.5em}'
+    + '.gmAdd{margin-top:1.5em}.gmAddRow{display:flex;align-items:stretch;gap:1em}.gmAddRow .emby-input{flex:1}'
+    + '.gmAddRow .emby-button{margin:0;flex:none;padding-top:0;padding-bottom:0}'
     + '.gmBox{padding:1em 1.2em;border:1px solid var(--jf-palette-divider,rgba(128,128,128,.3));border-radius:.5em;margin-bottom:2em}'
     + '.gmBox h3{margin:0 0 .5em}'
     + '.gmStatus{padding:.8em 1em;border-radius:.5em;background:rgba(0,164,220,.15);margin-bottom:1em}'
@@ -139,7 +139,7 @@ class ConfigPage {
         this.root = view.querySelector('.gmConfig');
         this.config = config;
         this.activeTab = 'Genres';
-        this.hideUnused = true;
+        this.hideUnused = false;
         this.statusTimer = null;
         this.pollUntil = 0;
         this.applyTask = null;
@@ -229,11 +229,6 @@ class ConfigPage {
         return result.sort(compareNames);
     }
 
-    /** Approximate number of items of a final genre (an item can have several of its original genres). */
-    getFinalCount(final) {
-        return this.getSources(final).reduce((total, source) => total + this.getCount(source), 0);
-    }
-
     getMapping() {
         const mappings = [];
         this.assignments.forEach(function (target, source) {
@@ -248,17 +243,6 @@ class ConfigPage {
         if (this.finals.indexOf(name) === -1) {
             this.finals.push(name);
             this.finals.sort(compareNames);
-        }
-    }
-
-    /** Moves an original genre into a final genre (or removes it), the final genre it leaves is deleted if it is empty now. */
-    move(source, final) {
-        const previous = this.assignments.get(source);
-        this.assignments.set(source, final);
-        if (previous && !this.getSources(previous).length) {
-            this.finals = this.finals.filter(function (other) {
-                return other !== previous;
-            });
         }
     }
 
@@ -307,9 +291,12 @@ class ConfigPage {
             + '<span>' + escapeHtml(t('HideUnused')) + '</span></label>'
             + '</div>'
             + '<div class="gmFinals"></div>'
-            + '<div class="gmInline gmAdd">'
-            + '<div class="inputContainer"><input is="emby-input" type="text" class="gmNewFinal" autocomplete="off" label="' + escapeHtml(t('NewFinalGenre')) + '" /></div>'
+            + '<div class="gmAdd">'
+            + '<label class="inputLabel inputLabelUnfocused" for="gmNewFinal">' + escapeHtml(t('NewFinalGenre')) + '</label>'
+            + '<div class="gmAddRow">'
+            + '<input type="text" id="gmNewFinal" class="emby-input gmNewFinal" autocomplete="off" />'
             + '<button is="emby-button" type="button" class="raised" data-action="add"><span>' + escapeHtml(t('Add')) + '</span></button>'
+            + '</div>'
             + '</div>')
             + this.panelHtml('Preview', ''
             + '<p class="fieldDescription">' + escapeHtml(t('PreviewHelp')) + '</p>'
@@ -431,7 +418,7 @@ class ConfigPage {
     }
 
     iconButton(action, icon, title) {
-        return '<button is="paper-icon-button-light" type="button" data-action="' + action + '" title="' + escapeHtml(title) + '">'
+        return '<button type="button" class="paper-icon-button-light" data-action="' + action + '" title="' + escapeHtml(title) + '">'
             + '<span class="material-icons ' + icon + '" aria-hidden="true"></span></button>';
     }
 
@@ -560,22 +547,8 @@ class ConfigPage {
 
     /** Deletes a final genre, its original genres are removed from the items. */
     deleteFinal(final) {
-        const sources = this.getSources(final);
-        const count = this.getFinalCount(final);
-        const apply = () => {
-            this.moveAll(final, '');
-            this.renderFinals();
-        };
-
-        if (count > 0) {
-            confirmDialog(this.t('DeleteConfirm', { genre: final, genres: sources.join(', '), count: count }), this.t('Delete')).then(function (confirmed) {
-                if (confirmed) {
-                    apply();
-                }
-            });
-        } else {
-            apply();
-        }
+        this.moveAll(final, '');
+        this.renderFinals();
     }
 
     /** Enter in a text field runs its action instead of saving the form, Escape cancels the renaming of a final genre. */
@@ -621,7 +594,7 @@ class ConfigPage {
             }
         } else if (source !== null) {
             if (element.value) {
-                this.move(source, element.value === REMOVE ? '' : element.value.substring(FINAL_PREFIX.length));
+                this.assignments.set(source, element.value === REMOVE ? '' : element.value.substring(FINAL_PREFIX.length));
                 this.renderFinals();
             }
         } else if (element.classList.contains('gmHideUnused')) {
